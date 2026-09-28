@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.wrangler/
+worker-configuration.d.ts
+
+# Local secrets: Wrangler reads .dev.vars, .dev.vars.<env> and .env files. Only the example is committed.
+.dev.vars*
+!.dev.vars.example
+.env*
+
+# Vitest cache and reporter output
+.vitest/
+
+# OS and editor clutter
+.DS_Store
+*.log
