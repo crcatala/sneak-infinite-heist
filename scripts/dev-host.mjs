@@ -2,8 +2,10 @@ import { spawn } from "node:child_process";
 
 console.warn(`
 ⚠️  WARNING: Starting the dev server on all network interfaces and allowing all hostnames.
-   Anyone who can reach this server may access the app. Local dev enables cheats and uses
-   a well-known invite key. Use only on a network you trust (for example, your private Tailscale).
+   Anyone who can reach it may access the app. Local dev enables cheats and uses a well-known
+   invite key. Disabling host checks also carries DNS-rebinding risk: a malicious website may
+   be able to reach this server through your browser, even on a trusted network. Avoid browsing
+   untrusted sites while it is running, and stop it when you are done.
 `);
 
 const npmCli = process.env.npm_execpath;

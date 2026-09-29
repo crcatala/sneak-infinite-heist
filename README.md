@@ -24,9 +24,11 @@ Objects inside `workerd` on your machine. The first `npm run dev` copies `.dev.v
 secrets, gitignored), which includes a dev invite.
 
 The dev server only listens on `localhost`. To test from a phone or another machine on your network, run
-`npm run dev:host`. It listens on every interface and allows requests from any hostname. **Only use this on a
-network you trust** (for example, your private Tailscale): local dev runs with debug cheats on and a well-known
-invite key, and anyone who can reach the server may access the app. The command prints this warning when it starts.
+`npm run dev:host`. It listens on every interface and allows requests from any hostname. Local dev runs with debug
+cheats on and a well-known invite key, so anyone who can reach the server may access the app. Disabling host checks
+also carries DNS-rebinding risk: a malicious website may be able to reach the server through your browser, even on
+a trusted network. Use only on a trusted network (such as private Tailscale), avoid browsing untrusted sites while
+it runs, and stop it when you are done. The command prints this warning when it starts.
 
 - **Solo:** open the site, press any key, then **Play Solo**. It runs entirely in your browser, with no server or
   sign-up.
