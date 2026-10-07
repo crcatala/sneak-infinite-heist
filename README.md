@@ -251,8 +251,10 @@ What a game uses, and why it stays cheap:
 - **Wake-ups are bounded.**
   - Timers, bot moves and dead-socket checks use storage alarms. An alarm is only rewritten when it changes, since
     each write is billed.
-  - A room in use checks for dead sockets once a minute. After 10 minutes with no joins or moves, it stops
-    checking and sleeps, so a tab left open overnight costs nothing.
+  - A room in use checks for dead sockets once a minute. After 10 minutes with no joins or messages, it stops
+    checking and sleeps, so a tab left open overnight no longer keeps waking it. The tab's heartbeats may still
+    count as a few hundred requests a day. The next join or message checks right away, so a player whose
+    device died in the meantime frees their seat (and hands over the host) at once.
 - **Bad links never reach a room.** Room codes are signed, so the Worker rejects made-up codes without waking a
   Durable Object. Creating rooms needs an invite, and each invite is limited (see above).
 - **No rate limit by default.** Anyone with a room link can send messages. On the free plan the worst case is
