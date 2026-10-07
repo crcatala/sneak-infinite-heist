@@ -4,6 +4,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import { cheatsEnabled, inviteStub, type Env } from "./env";
+import { presenceSweepAt } from "../shared/presence";
 import { CLOSE, clientMessageSchema, type ServerMessage } from "../shared/protocol";
 import { createRoomState, Room, RoomError, SeatClaimNeeded, type RoomDeps } from "../shared/room";
 import type { RoomState } from "../shared/roomTypes";
@@ -17,6 +18,8 @@ interface Attachment {
   sid?: string;
   /** When the socket joined (counts as its first sign of life, before any heartbeat). */
   since?: number;
+  /** When this socket last sent a message (heartbeats don't count): keeps presence sweeps going. */
+  active?: number;
   /** Closed by the heartbeat sweep; its close event may never arrive, so ignore it from now on. */
   stale?: boolean;
 }
@@ -37,11 +40,6 @@ const STUCK_ALARM_BACKOFF_MS = 60 * 1000;
  * ever arrives). Generous because browsers throttle timers in background tabs to once a minute.
  */
 const HEARTBEAT_STALE_MS = 90 * 1000;
-/**
- * How often to look for stale sockets while anyone is connected. Each sweep is an alarm that wakes
- * the room (pings alone don't), so keep it infrequent: a dead socket is noticed within 90-150 s.
- */
-const PRESENCE_SWEEP_MS = 60 * 1000;
 
 export class RoomDurableObject extends DurableObject<Env> {
   private room: Room | null = null;
@@ -165,6 +163,7 @@ export class RoomDurableObject extends DurableObject<Env> {
       return this.sendTo(ws, { t: "error", message: "Malformed message." });
     }
     if (!parsed.success) return this.sendTo(ws, { t: "error", message: "Invalid message." });
+    if (parsed.data.t !== "ping") ws.serializeAttachment({ ...att, active: Date.now() } satisfies Attachment);
 
     const result = room.handle(att.playerId, parsed.data);
     for (const out of result.outbound) {
@@ -272,12 +271,14 @@ export class RoomDurableObject extends DurableObject<Env> {
         next = Math.max(next, now + 50);
       }
     }
-    // While anyone is connected, wake up now and then to catch silently dropped sockets. An alarm
-    // already due soon enough is kept, so frequent reschedules don't keep pushing the sweep back.
-    if (this.liveSockets().length > 0) {
-      const sweep = current !== null && current > now && current <= now + PRESENCE_SWEEP_MS ? current : now + PRESENCE_SWEEP_MS;
-      next = next === null ? sweep : Math.min(next, sweep);
-    }
+    // While the room is in use, wake up now and then to catch silently dropped sockets.
+    const live = this.liveSockets();
+    const lastActivity = Math.max(0, ...live.map((ws) => {
+      const att = ws.deserializeAttachment() as Attachment;
+      return Math.max(att.active ?? 0, att.since ?? 0);
+    }));
+    const sweep = presenceSweepAt(current, now, live.length, lastActivity);
+    if (sweep !== null) next = next === null ? sweep : Math.min(next, sweep);
     if (next === current) return;
     if (next === null) await this.ctx.storage.deleteAlarm();
     else await this.ctx.storage.setAlarm(next);
