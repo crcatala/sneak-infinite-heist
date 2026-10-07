@@ -143,6 +143,7 @@ src/
     room.ts          lobby → round (setup → play → round over) → next round / lobby; seats, bots, clocks
     protocol.ts      zod-validated client messages, server messages, per-player RoomView
     roomCode.ts      signed room codes (HMAC check characters) · invites.ts: quotas, "My rooms", expiry
+    presence.ts      when a room wakes to check for dead sockets, and when it goes quiet and sleeps
   worker/          Cloudflare Worker + Durable Objects (index, env, roomObject, inviteObject)
   client/          React + React Three Fiber
     net.ts / local.ts   websocket transport (online) / the same Room engine in the tab (solo)
@@ -178,6 +179,13 @@ are available on the free Workers plan.
 1. **Log in once.** This opens a browser to authorize Wrangler with your Cloudflare account:
    ```bash
    npx wrangler login
+   ```
+   On a remote or headless machine, where the browser callback can't reach Wrangler, create an API token instead
+   (Cloudflare dashboard → My Profile → API Tokens → the "Edit Cloudflare Workers" template) and export it:
+   ```bash
+   export CLOUDFLARE_API_TOKEN=<token>
+   export CLOUDFLARE_ACCOUNT_ID=<account id>   # only needed if the token can see more than one account
+   npx wrangler whoami                         # check it works
    ```
 2. **Deploy:**
    ```bash
@@ -220,8 +228,38 @@ are available on the free Workers plan.
 
 **Useful afterwards:**
 
+- Deploys are manual: run `npm run deploy` again to ship changes. CI only type-checks, tests and builds.
 - `npx wrangler tail` streams the live logs.
 - If you ever rename or remove a Durable Object class, append a migration; don't edit `v1`.
+
+### Costs & limits
+
+A group of friends playing most nights should fit comfortably in the **free Workers plan**. On the free plan,
+going over a daily limit doesn't bill you: further requests fail until the daily reset, so online rooms stop
+working for the rest of the day while solo keeps working (it runs in the browser). See Cloudflare's
+[Workers](https://developers.cloudflare.com/workers/platform/pricing/) and
+[Durable Objects](https://developers.cloudflare.com/durable-objects/platform/pricing/) pricing for current numbers.
+
+What a game uses, and why it stays cheap:
+
+- **Static files are free.** Only `/api/*` runs the Worker.
+- **Rooms sleep between moves.** Durable Objects bill for every second they stay awake. Rooms use the WebSocket
+  hibernation API, so a room with players connected but idle isn't billed, and the 10-second heartbeat is answered
+  by Cloudflare without waking the room.
+- **Requests are small.** A 4-player, hour-long game sends a few hundred messages plus the heartbeats (incoming
+  WebSocket messages are billed at 1/20 of a request). That's well under 1% of the free daily allowance.
+- **Wake-ups are bounded.**
+  - Timers, bot moves and dead-socket checks use storage alarms. An alarm is only rewritten when it changes, since
+    each write is billed.
+  - A room in use checks for dead sockets once a minute. After 10 minutes with no joins or messages, it stops
+    checking and sleeps, so a tab left open overnight no longer keeps waking it. The tab's heartbeats may still
+    count as a few hundred requests a day. The next join or message checks right away, so a player whose
+    device died in the meantime frees their seat (and hands over the host) at once.
+- **Bad links never reach a room.** Room codes are signed, so the Worker rejects made-up codes without waking a
+  Durable Object. Creating rooms needs an invite, and each invite is limited (see above).
+- **No rate limit by default.** Anyone with a room link can send messages. On the free plan the worst case is
+  hitting the daily cap. On the paid plan ($5/month), add a billing notification in the dashboard, and the WAF rule
+  above if you use your own domain.
 
 ## Credits & legal
 
