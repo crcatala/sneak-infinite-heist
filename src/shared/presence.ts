@@ -7,9 +7,9 @@
 export const PRESENCE_SWEEP_MS = 60 * 1000;
 /**
  * Sweeps stop once nobody has joined or sent a message for this long, so a tab left open
- * overnight lets the room hibernate instead of waking it every minute. The next join, or a message
- * that changes the room, starts them again. Well above the longest turn timer (2 min), so it
- * rarely trips during a game.
+ * overnight lets the room hibernate instead of waking it every minute. The next join or message
+ * sweeps at once and starts them again. Well above the longest turn timer (2 min), so it rarely
+ * trips during a game.
  */
 export const QUIET_AFTER_MS = 10 * 60 * 1000;
 

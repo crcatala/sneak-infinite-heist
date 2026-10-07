@@ -120,6 +120,9 @@ export class RoomDurableObject extends DurableObject<Env> {
         server.close(CLOSE.notFound, "no such room");
         return new Response(null, { status: 101, webSocket: client });
       }
+      // Sweeps stop in a quiet room, so a seat whose device died meanwhile still reads as taken.
+      // Settle that first, or the joiner can't claim it.
+      await this.sweepStaleSockets();
 
       try {
         const joined = this.room.join({
@@ -164,6 +167,9 @@ export class RoomDurableObject extends DurableObject<Env> {
     }
     if (!parsed.success) return this.sendTo(ws, { t: "error", message: "Invalid message." });
     if (parsed.data.t !== "ping") ws.serializeAttachment({ ...att, active: Date.now() } satisfies Attachment);
+    // As on join: drop players whose device died while the room was quiet before acting, so host
+    // handover and the turn clock see who is really here.
+    await this.sweepStaleSockets();
 
     const result = room.handle(att.playerId, parsed.data);
     for (const out of result.outbound) {
@@ -176,6 +182,9 @@ export class RoomDurableObject extends DurableObject<Env> {
       this.broadcastState();
       await this.scheduleAlarm();
       await this.pushSummary(true);
+    } else {
+      // Any message makes a quiet room active again: start the presence sweeps.
+      await this.scheduleAlarm();
     }
   }
 
@@ -223,7 +232,7 @@ export class RoomDurableObject extends DurableObject<Env> {
     const now = Date.now();
     for (const ws of this.liveSockets()) {
       const att = ws.deserializeAttachment() as Attachment;
-      const heard = Math.max(this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0, att.since ?? 0);
+      const heard = Math.max(this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0, att.since ?? 0, att.active ?? 0);
       if (now - heard < HEARTBEAT_STALE_MS) continue;
       try {
         ws.serializeAttachment({ ...att, stale: true } satisfies Attachment);
