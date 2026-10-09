@@ -116,6 +116,15 @@ either order:
 On phones in portrait, the board turns 90° (north on the right; the gold "N" on the plaza marks it) so the long side
 runs up the screen.
 
+## The lobby
+
+The lobby is a one-screen character select that sizes itself from the window height, so it fits anything from
+1280×720 up to ultrawide without scrolling. The crew runs along the top, the detectives sit in a cover-flow carousel
+(arrow keys, D-pad, swipe or the on-screen arrows to cycle, Enter or A to choose), and the thief selector and the
+ready button run along the bottom. <kbd>R</kbd> or X toggles ready. The house rules open from one button, below.
+First-time players get two hand-drawn arrows, one at the Choose button and one at the ready button. Each goes away for
+good once that step has been done (kept in `localStorage` as `sneak:lobby-hints`).
+
 ## Lobby settings (host)
 
 | Setting | Options (default first) | What it does |
@@ -151,6 +160,7 @@ src/
     scene/              Museum diorama, pieces, overlays, camera rig, title scene, bloom
     hud/                turn bar, action panel, plotting pad, dice tray, log, motion prompt, round over
     game/               interaction (clicks and highlights), event presentation, derived helpers
+    lobbyFlow.ts        pure helpers for the lobby: cover-flow ring maths and the first-time hint steps
     sfx.ts              sound effects (clips from public/audio/sfx, synth fallback), volume buses
     music.ts            background music and round-end stingers (public/audio/music), crossfaded
 ```
@@ -271,7 +281,9 @@ friends.
 - It isn't affiliated with, sponsored by or endorsed by Hasbro, Parker Brothers or any of their brands. *Clue* is a
   trademark of Hasbro, Inc.
 - No artwork, rules text, logos, characters or other assets from the original game are used. The 3D models,
-  textures, the nine paintings and the detectives are all original and made in code for this project.
+  textures and the nine paintings are all original and made in code for this project. The detective and thief
+  portraits in the lobby (`public/art/detectives`) are original illustrations generated with OpenAI's image model
+  from the prompts in [docs/ART.md](docs/ART.md).
   The sound effects (`public/audio/sfx`) were generated with [ElevenLabs](https://elevenlabs.io) from text prompts.
   The music (`public/audio/music`) is original to this project; `node scripts/normalize-music.mjs <dir>` rebuilds
   the level-matched MP3s from raw exports.

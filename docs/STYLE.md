@@ -256,3 +256,25 @@ when something is revealed.
     -17, with a -1.5 dBFS peak ceiling.
 - **Volumes:** master, music and SFX, all persisted. The speaker button (title screen, lobby, in-game turn bar)
   opens a quick mixer with the three sliders and a mute switch, and the Settings page has the same sliders.
+
+## 9. The lobby and the character art
+
+- **One screen, no scroll.** The lobby is a console-style character select. Its type scale and spacing come from the
+  screen height (`--u` in `lobby.css`, container query units), so it holds from 1280×720 to ultrawide. Short
+  landscape phones fall back to scrolling instead of squeezing, and phones in portrait stack the crew and the
+  footer.
+- **Layout.** The crew (portrait avatars with a ready tick, host crown and thief badge) runs along the top with a
+  **House rules** button at the right. The detective carousel fills the middle: the focused detective large and lit
+  in their own colour, neighbours smaller and dimmer on a ring, taken ones greyed with the owner's name. The name,
+  blurb and the **Choose** button sit underneath, and thief selection and **I'm ready** run along the bottom.
+- **House rules live in a sheet** (three columns: Museum, Heist, Detectives & table) so the long descriptions have
+  room without ever pushing the lobby past the screen. Non-hosts can open it read-only.
+- **Character art.** Full-body, transparent, 2:3 portraits in a *retro storybook* style: mid-century gouache with
+  paper grain, a limited warm palette, simplified shapes and no outlines. Each detective keeps their pawn colour
+  (red, yellow, green, blue, purple, white) and their hat. The thief is a deliberately faceless silhouette (slouch
+  hat, turned-up collar, loot sack) so the role works for any player. Prompts and provenance are in
+  [docs/ART.md](ART.md).
+- **First-time hints** are hand-drawn arrows with pencil-written notes in the Caveat face: the first points at
+  **Choose** ("Cycle left and right, then choose your detective!"), the second at the ready button ("Don't forget to
+  ready up!"). They draw themselves in, bob toward their target, and hold still under reduced motion. Each step is
+  remembered per browser once done.

@@ -237,6 +237,8 @@ a {
   --fill: var(--mint-400);
   --lip: var(--mint-700);
   --ink: var(--night-950);
+  /* game.css has a bare .mint text colour that would otherwise win and hide the label. */
+  color: var(--ink);
 }
 
 .btn.ghost {
