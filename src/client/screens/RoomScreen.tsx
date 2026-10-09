@@ -108,7 +108,7 @@ export function RoomScreen({ code }: { code: string }) {
 export function PhaseScreen() {
   const phase = useStore((s) => s.view?.phase);
   useEffect(() => {
-    if (phase === "lobby") setMusic("title");
+    if (phase === "lobby") setMusic("lobby");
   }, [phase]);
   if (phase === "lobby") return <Lobby />;
   return (

@@ -26,6 +26,10 @@
 .turnbar > * {
   pointer-events: auto;
 }
+/* An open volume mixer rises above announcements and the dice, but stays under the pause menu. */
+.turnbar:has(.vol-pop) {
+  z-index: 23;
+}
 .turnbar-stats {
   display: flex;
   flex-wrap: wrap;

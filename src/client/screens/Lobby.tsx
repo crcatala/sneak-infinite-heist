@@ -12,6 +12,7 @@ import { MAX_SEATS } from "../../shared/room";
 import { copyText } from "../clipboard";
 import { Icon } from "../components/Icon";
 import { Logo } from "../components/Logo";
+import { VolumeControl } from "../components/VolumeControl";
 import { withAlias } from "../identity";
 import { navigate } from "../router";
 import { sfx } from "../sfx";
@@ -72,6 +73,7 @@ export function Lobby() {
             <ShareCode code={view.code} />
           )}
         </div>
+        <VolumeControl />
         <button className="btn small" onClick={leave}>
           <Icon name="exit" size={18} /> Leave
         </button>

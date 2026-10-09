@@ -6,7 +6,7 @@ import { character, THIEF } from "../../shared/characters";
 import type { GameView } from "../../shared/game/views";
 import type { RoomView } from "../../shared/protocol";
 import { Icon } from "../components/Icon";
-import { MuteButton } from "../components/MuteButton";
+import { VolumeControl } from "../components/VolumeControl";
 import { activePawn, pawnName, playerName } from "../game/derive";
 import { useGameUi, type CameraPreset } from "../game/uiStore";
 import { serverNow } from "../store";
@@ -118,7 +118,7 @@ export function TurnBar({ view, game }: { view: RoomView; game: GameView }) {
         <button className={`btn small icon ${ui.logOpen ? "primary" : ""}`} aria-pressed={ui.logOpen} title="Log (L)" onClick={() => ui.set({ logOpen: !ui.logOpen })}>
           <Icon name="layers" size={18} />
         </button>
-        <MuteButton />
+        <VolumeControl />
         <button className="btn small icon" title="Menu (Esc)" aria-label="Menu" onClick={() => ui.set({ paused: true })}>
           <Icon name="gear" size={18} />
         </button>

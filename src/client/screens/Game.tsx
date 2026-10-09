@@ -13,6 +13,7 @@ import { TurnBar } from "../hud/TurnBar";
 import { activePawn } from "../game/derive";
 import { useBoardInteraction } from "../game/interact";
 import { defersToFocusedControl, primaryIntent } from "../game/keys";
+import { musicFor } from "../game/musicFor";
 import { ingest, resetPlayer, setFastForward, skipFx, useFx } from "../game/present";
 import { useGameUi } from "../game/uiStore";
 import { GameScene } from "../scene/GameScene";
@@ -40,9 +41,12 @@ export function Game() {
 
   useEffect(() => () => resetPlayer(), []);
 
+  const resultShown = useFx((s) => s.showResult);
   useEffect(() => {
-    if (game.phase === "play") setMusic(game.thief.revealed ? "chase" : "calm");
-  }, [game.phase, game.thief.revealed]);
+    const mode = musicFor({ phase: game.phase, revealed: game.thief.revealed, powerCut: game.power.cut, resultShown });
+    // The results track waits for the stinger and the win/lose jingle.
+    if (mode) setMusic(mode, mode === "results" ? 2 : 0);
+  }, [game.phase, game.thief.revealed, game.power.cut, resultShown]);
 
   // A new turn clears stale selections.
   const turnKey = `${game.phase}:${game.thief.turns}:${game.turn.kind}:${game.turn.kind === "detective" ? game.turn.pawn : ""}`;

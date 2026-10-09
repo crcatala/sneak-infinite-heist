@@ -393,6 +393,94 @@ input[type="range"]::-moz-range-thumb {
   border: 3px solid var(--night-950);
 }
 
+/* Quick volume mixer (title footer, lobby header, game turn bar). */
+.vol {
+  position: relative;
+  display: inline-flex;
+}
+.vol-pop {
+  position: absolute;
+  z-index: 40;
+  width: min(290px, calc(100vw - 32px));
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+}
+/* More opaque than a plain glass panel: it often opens over menu text. */
+.vol-pop.panel.glass {
+  background: color-mix(in srgb, var(--night-800) 97%, transparent);
+}
+.vol.down .vol-pop {
+  top: calc(100% + 10px);
+}
+.vol.up .vol-pop {
+  bottom: calc(100% + 10px);
+}
+.vol.end .vol-pop {
+  right: 0;
+}
+.vol.start .vol-pop {
+  left: 0;
+}
+.vol-row {
+  display: grid;
+  grid-template-columns: 62px 1fr 40px;
+  align-items: center;
+  gap: 10px;
+  transition: opacity var(--d-ui);
+}
+.vol-row.dimmed {
+  opacity: 0.45;
+}
+.vol-name {
+  font-family: var(--f-body);
+  font-weight: 800;
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--moon-200);
+}
+.vol-val {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: var(--t-small);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.vol-mute {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 2px solid var(--night-600);
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: var(--t-small);
+}
+
+/* On phones the button can sit anywhere once its header wraps, so an anchored panel can run off the
+   screen. Pin the mixer to the viewport instead: full width minus the gutters, just above or below
+   the bar it came from. */
+@media (max-width: 700px) {
+  /* The align classes are as specific as these selectors, so name them to win. */
+  .vol.start .vol-pop,
+  .vol.end .vol-pop {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    width: auto;
+  }
+  .vol.down .vol-pop {
+    /* Keeps the static top (the button's) and steps below it. */
+    top: auto;
+    margin-top: 44px;
+  }
+  .vol.up .vol-pop {
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 48px);
+  }
+}
+
 /* Segmented choice (settings, lobby). */
 .seg {
   display: inline-flex;
