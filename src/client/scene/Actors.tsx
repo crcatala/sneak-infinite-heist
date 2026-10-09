@@ -8,30 +8,36 @@ import type { Board, Cell } from "../../shared/board/model";
 import { useStore } from "../store";
 import { reducedMotion } from "../prefs";
 import { cellPos, FLOOR_Y } from "./layout";
+import { planWalk, type Walk } from "./walk";
 
-export function Mover({ board, cell, path, children, stepMs = 170, hop = 0.22, visible = true }: { board: Board; cell: Cell; path?: Cell[] | null; children: ReactNode; stepMs?: number; hop?: number; visible?: boolean }) {
+/** `walk` and `stepKey` are for the round-end replay (see walk.ts); the live game leaves them out. */
+export function Mover({ board, cell, path, walk, stepKey, children, stepMs = 170, hop = 0.22, visible = true }: { board: Board; cell: Cell; path?: Cell[] | null; walk?: Walk; stepKey?: number; children: ReactNode; stepMs?: number; hop?: number; visible?: boolean }) {
   const ref = useRef<THREE.Group>(null);
   const { invalidate } = useThree();
   const route = useRef<THREE.Vector3[]>([]);
   const t = useRef(0);
   const at = useRef<Cell | null>(null);
+  const lastStep = useRef(stepKey);
 
   useEffect(() => {
     const g = ref.current;
     if (!g) return;
-    if (at.current === null || reducedMotion()) {
+    const again = lastStep.current !== stepKey;
+    lastStep.current = stepKey;
+    const plan = reducedMotion() ? ({ kind: "snap" } as const) : planWalk(at.current, cell, path, walk, again);
+    if (plan.kind === "stay") return;
+    if (plan.kind === "snap") {
+      route.current = [];
       g.position.copy(cellPos(board, cell));
       at.current = cell;
       invalidate();
       return;
     }
-    if (at.current === cell) return;
-    const pts = (path && path.length && path[path.length - 1] === cell ? path : [cell]).map((c) => cellPos(board, c));
-    route.current = [g.position.clone(), ...pts];
+    route.current = [g.position.clone(), ...plan.cells.map((c) => cellPos(board, c))];
     t.current = 0;
     at.current = cell;
     invalidate();
-  }, [board, cell, path, invalidate]);
+  }, [board, cell, path, walk, stepKey, invalidate]);
 
   useFrame((_, dt) => {
     const g = ref.current;

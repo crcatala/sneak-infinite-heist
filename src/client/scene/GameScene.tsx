@@ -77,6 +77,13 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
   const escapedTo = game.result?.reason === "escaped" && game.result.slot && ui.replayTurn === null ? board.slotById[game.result.slot].cell : null;
   // ...and, if wanted, so are the detectives: where each stood after that turn and how they got there.
   const rounds = useMemo(() => (replay ? buildReplay({ view, game }) : null), [replay, view, game]);
+  // Walk a replay step only when the scrubber moved one turn forward (play, or a nudge): after a jump or
+  // a step back the pieces just stand where they were, instead of gliding along a route they didn't take.
+  const prevReplayTurn = useRef(ui.replayTurn);
+  useEffect(() => {
+    prevReplayTurn.current = ui.replayTurn;
+  }, [ui.replayTurn]);
+  const stepped = ui.replayTurn !== null && prevReplayTurn.current !== null && ui.replayTurn === prevReplayTurn.current + 1;
   const detReplay = rounds && ui.replayDetectives ? rounds[Math.min(ui.replayTurn!, rounds.length - 1)] : null;
   const thiefShown = replay ? (replayStep ? replayStep.path[replayStep.path.length - 1] : null) : (escapedTo ?? game.thief.cell);
 
@@ -166,9 +173,9 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
       {game.detectives.map((d) => {
         const cell = detReplay ? (detReplay.positions[d.id] ?? null) : d.cell;
         if (cell === null) return null;
-        const path = detReplay ? detReplay.moves.filter((m) => m.pawn === d.id).pop()?.path : paths[d.id];
+        const move = detReplay?.moves.filter((m) => m.pawn === d.id).pop();
         return (
-          <Mover key={d.id} board={board} cell={cell} path={path}>
+          <Mover key={d.id} board={board} cell={cell} path={detReplay ? move?.path : paths[d.id]} walk={detReplay ? (stepped && move ? move : null) : undefined} stepKey={ui.replayTurn ?? undefined}>
             <Pawn colour={d.character} />
             {activePawn(game)?.id === d.id && game.phase === "play" && <ActiveRing />}
           </Mover>
@@ -189,7 +196,7 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
       {/* the thief */}
       {replayStep && <PathDots board={board} from={replayStep.from} path={replayStep.path} colour="#ff6b81" />}
       {thiefShown !== null && (game.thief.revealed || iAmThief || game.phase === "roundOver") && (
-        <Mover board={board} cell={thiefShown} path={replay ? replayStep?.path : escapedTo !== null ? [escapedTo] : thiefPath} stepMs={escapedTo !== null ? 380 : 150} hop={escapedTo !== null ? 0.6 : 0.22}>
+        <Mover board={board} cell={thiefShown} walk={replay ? (stepped && replayStep ? replayStep : null) : undefined} stepKey={ui.replayTurn ?? undefined} path={replay ? replayStep?.path : escapedTo !== null ? [escapedTo] : thiefPath} stepMs={escapedTo !== null ? 380 : 150} hop={escapedTo !== null ? 0.6 : 0.22}>
           {game.thief.revealed || game.phase === "roundOver" ? (
             <PopIn>
               <ThiefPawn haul={game.thief.haul} />
