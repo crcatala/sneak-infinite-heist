@@ -6,7 +6,7 @@ import { cellOf, getBoard, xyOf } from "../../shared/board/model";
 import { ActionPanel } from "../hud/ActionPanel";
 import { Announcer } from "../hud/Announcer";
 import { DiceTray } from "../hud/DiceTray";
-import { BannerLayer, EmoteBar, LogPanel, MotionPrompt } from "../hud/Panels";
+import { BannerLayer, EmoteBar, LogPanel, MotionPrompt, PointerToggle, showsPointerToggle } from "../hud/Panels";
 import { PauseMenu, RoundOver } from "../hud/RoundOver";
 import { ThiefPad } from "../hud/ThiefPad";
 import { TurnBar } from "../hud/TurnBar";
@@ -62,8 +62,9 @@ export function Game() {
   useKeys();
   useHudWatch();
 
+  const pointerToggle = showsPointerToggle(view, game);
   return (
-    <div className={`screen game-screen role-${view.role ?? "spectator"}${game.power.cut ? " dark" : ""}`}>
+    <div className={`screen game-screen role-${view.role ?? "spectator"}${game.power.cut ? " dark" : ""}${pointerToggle ? " has-pointer-toggle" : ""}`}>
       <GameScene view={view} game={game} ix={ix} />
       <TurnBar view={view} game={game} />
       {view.role === "thief" && game.phase !== "roundOver" && <ThiefPad game={game} />}
@@ -74,6 +75,7 @@ export function Game() {
       <BannerLayer />
       <MotionPrompt view={view} game={game} />
       {game.phase === "roundOver" && showResult && <RoundOver view={view} game={game} />}
+      {pointerToggle && <PointerToggle />}
       <EmoteBar view={view} />
       <PauseMenu view={view} />
       {view.role === "spectator" && <div className="peek-badge watching-badge">👀 Watching: public information only</div>}

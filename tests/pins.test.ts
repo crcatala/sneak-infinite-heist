@@ -36,6 +36,17 @@ describe("pin cap per player", () => {
     expect(pinOpacity(evicted, now + PIN_EVICT_FADE_MS)).toBe(0);
   });
 
+  it("still holds the cap when older pins are already in their natural fade", () => {
+    // Regression: pins that had started fading used to be left out of the count, so a player who kept
+    // placing pins as the old ones faded could have five on the board at once.
+    let pins: Pin[] = [];
+    for (const [id, when] of [[1, 0], [2, 200], [3, 400], [4, 6600], [5, 6800]]) pins = placePin(pins, at(id), when);
+    // Once the pushed-out pins' quick fade is over, exactly the cap remains, and it's the newest.
+    expect(pins.filter((p) => pinOpacity(p, 6800 + PIN_EVICT_FADE_MS + 1) > 0).map((p) => p.id)).toEqual([3, 4, 5]);
+    // And right after the last placement, nothing but those and the two being pushed out is visible.
+    expect(pins.filter((p) => pinOpacity(p, 6801) > 0)).toHaveLength(PIN_MAX_PER_PLAYER + 2);
+  });
+
   it("counts each player separately", () => {
     let pins: Pin[] = [];
     for (let i = 0; i < PIN_MAX_PER_PLAYER; i++) pins = placePin(pins, at(i, "alice"), 0);

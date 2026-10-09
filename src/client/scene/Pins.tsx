@@ -3,7 +3,7 @@
 // out after a few seconds. Placement is free (not snapped to a cell).
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { character } from "../../shared/characters";
 import type { Board } from "../../shared/board/model";
@@ -87,6 +87,10 @@ function PinMesh({ board, pin, colour, name }: { board: Board; pin: Pin; colour:
       tag: mk(new THREE.SpriteMaterial({ map: tagTexture(name, colour), depthTest: false })),
     };
   }, [colour, name]);
+
+  // These materials are ours (not created by JSX children), so React Three Fiber won't free them.
+  // The shared geometry and cached textures outlive any one pin and are left alone.
+  useEffect(() => () => [mats.body, mats.halo, mats.glow, mats.tag, ...mats.ripples].forEach((m) => m.dispose()), [mats]);
 
   useFrame(() => {
     const now = performance.now();

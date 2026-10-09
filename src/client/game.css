@@ -1336,6 +1336,18 @@
   gap: 4px;
   align-items: center;
 }
+.pointer-toggle {
+  position: absolute;
+  right: 10px;
+  bottom: calc(max(12px, env(safe-area-inset-bottom)) + 46px);
+  z-index: 13;
+}
+.pointer-toggle.on {
+  border-color: var(--lamp-400);
+}
+.has-pointer-toggle .emote-float {
+  bottom: 112px;
+}
 .emote-btn {
   width: 38px;
   height: 38px;
@@ -1470,9 +1482,17 @@
     bottom: auto;
     top: 206px;
   }
-  .emote-float {
+  .pointer-toggle {
+    bottom: auto;
+    top: 252px;
+  }
+  .emote-float,
+  .has-pointer-toggle .emote-float {
     bottom: auto;
     top: 250px;
+  }
+  .has-pointer-toggle .emote-float {
+    top: 296px;
   }
 }
 

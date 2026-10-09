@@ -163,7 +163,7 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
       send({ t: "pin", x, y });
       sfx.pinDrop();
     };
-    context = (cell, at) => (at.mark ? toggleMark(cell) : dropPin(at));
+    context = (cell, at) => (at.mark || ui.pointerMode === "mark" ? toggleMark(cell) : dropPin(at));
 
     switch (mode.kind) {
       case "setupLocks": {
@@ -368,7 +368,7 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
 
     return { mode, tiles, badges, markers, ghosts, pawnGhost, path, hoverReason, click, context };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, game, ui.hover, ui.hoverSlot, ui.held, ui.plan, ui.moveDest, ui.eyePreview, ui.danger, ui.heat, fx.flashes, fx.hint, heat, mode.kind]);
+  }, [view, game, ui.hover, ui.hoverSlot, ui.held, ui.plan, ui.moveDest, ui.eyePreview, ui.pointerMode, ui.danger, ui.heat, fx.flashes, fx.hint, heat, mode.kind]);
 }
 
 export function boardFor(game: GameView): Board {

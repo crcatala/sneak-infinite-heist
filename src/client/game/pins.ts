@@ -28,11 +28,15 @@ export function pinOpacity(pin: Pin, now: number): number {
   return (pin.until - now) / (pin.until - pin.fadeStart);
 }
 
-/** Adds a pin, fading the sender's oldest ones beyond the cap, and drops pins that are already gone. */
+/**
+ * Adds a pin, fading the sender's oldest ones beyond the cap, and drops pins that are already gone.
+ * Every pin still on screen counts, including ones in their natural fade (they're sped up if they're
+ * over the cap); only pins about to vanish anyway (or already being pushed out) don't.
+ */
 export function placePin(pins: Pin[], pin: Pick<Pin, "id" | "by" | "x" | "y">, now: number): Pin[] {
   const fresh: Pin = { ...pin, born: now, fadeStart: now + PIN_LIFETIME_MS - PIN_FADE_MS, until: now + PIN_LIFETIME_MS };
   const live = pins.filter((p) => p.until > now);
-  const mine = live.filter((p) => p.by === pin.by && p.fadeStart > now + PIN_EVICT_FADE_MS);
+  const mine = live.filter((p) => p.by === pin.by && p.until > now + PIN_EVICT_FADE_MS);
   const excess = new Set(mine.slice(0, Math.max(0, mine.length + 1 - PIN_MAX_PER_PLAYER)));
-  return [...live.map((p) => (excess.has(p) ? { ...p, fadeStart: now, until: now + PIN_EVICT_FADE_MS } : p)), fresh];
+  return [...live.map((p) => (excess.has(p) ? { ...p, fadeStart: Math.min(p.fadeStart, now), until: now + PIN_EVICT_FADE_MS } : p)), fresh];
 }
