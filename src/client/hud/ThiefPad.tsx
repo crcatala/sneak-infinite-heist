@@ -142,7 +142,7 @@ export function ThiefPad({ game }: { game: GameView }) {
   const all = [1, 2, 3, 4, 5, 6];
   const onBoard = new Map(game.cameras.map((c) => [c.n, c]));
   return (
-    <aside className="thief-pad" aria-label="Plotting pad">
+    <aside className="thief-pad" data-hud="side" aria-label="Plotting pad">
       <div className="pad-head">
         <span className="pad-title">Plotting pad</span>
         <span className="pad-secret">🔒 only you</span>

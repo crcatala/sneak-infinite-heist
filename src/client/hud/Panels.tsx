@@ -6,8 +6,8 @@ import { MOTION_RESPONSE_MS } from "../../shared/game/config";
 import type { GameView } from "../../shared/game/views";
 import { EMOTES, type RoomView } from "../../shared/protocol";
 import { Icon } from "../components/Icon";
-import { activePawn, pawnName } from "../game/derive";
-import { buildLog, skipFx, useFx } from "../game/present";
+import { activePawn, pawnHex, pawnName } from "../game/derive";
+import { buildLog, skipFx, useFx, type LogLine, type Part } from "../game/present";
 import { useGameUi } from "../game/uiStore";
 import { drawPatternCss } from "./patterns";
 import { sfx } from "../sfx";
@@ -77,18 +77,105 @@ export function BannerLayer() {
   );
 }
 
+/** "just now", "42s ago", "3m ago", "2h ago". */
+export function relativeTime(at: number, now: number): string {
+  const sec = Math.max(0, Math.round((now - at) / 1000));
+  if (sec < 10) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  return hr < 24 ? `${hr}h ago` : `${Math.floor(hr / 24)}d ago`;
+}
+
+/** Re-renders every `ms` so relative times keep ticking. */
+function useNow(ms: number): number {
+  const [now, setNow] = useState(() => serverNow());
+  useEffect(() => {
+    setNow(serverNow());
+    const id = setInterval(() => setNow(serverNow()), ms);
+    return () => clearInterval(id);
+  }, [ms]);
+  return now;
+}
+
+/** One styled noun in a log sentence (see `Part` in present.ts). */
+function PartView({ part }: { part: Part }) {
+  if (typeof part === "string") return <>{part}</>;
+  switch (part.k) {
+    case "det":
+      return (
+        <b className="p-det" style={{ ["--c" as string]: part.hex }}>
+          <i className="p-dot" />
+          {part.t}
+        </b>
+      );
+    case "thief":
+      return (
+        <b className="p-thief">
+          <Icon name="mask" size={13} />
+          {part.t}
+        </b>
+      );
+    case "place":
+      return (
+        <b className="p-place" data-floor={part.colour ?? "grey"}>
+          {part.t}
+        </b>
+      );
+    case "num":
+      return <b className="p-num">{part.t}</b>;
+    case "art":
+      return <em className="p-art">{part.t}</em>;
+    case "act":
+      return <b className="p-act">{part.t}</b>;
+    case "res":
+      return <b className={`p-res tone-${part.tone ?? "info"}`}>{part.t}</b>;
+  }
+}
+
+interface LogGroup {
+  key: string;
+  turn: number;
+  /** "thief", a detective pawn id, or "setup". */
+  actor: string;
+  /** First group of its turn: draws the turn heading. */
+  heading: boolean;
+  lines: LogLine[];
+}
+
+/** Turn headings, then one rail per actor (the thief, or a detective) holding their lines in order. */
+function groupLog(lines: LogLine[]): LogGroup[] {
+  const groups: LogGroup[] = [];
+  for (const l of lines) {
+    const actor = l.turn === 0 ? "setup" : (l.pawn ?? "thief");
+    const last = groups[groups.length - 1];
+    if (last && last.turn === l.turn && last.actor === actor) {
+      last.lines.push(l);
+      continue;
+    }
+    groups.push({ key: `${l.turn}:${actor}:${l.seq}`, turn: l.turn, actor, heading: !last || last.turn !== l.turn, lines: [l] });
+  }
+  return groups;
+}
+
 export function LogPanel({ view, game }: { view: RoomView; game: GameView }) {
   const open = useGameUi((s) => s.logOpen);
   const set = useGameUi((s) => s.set);
   const lines = useMemo(() => buildLog({ view, game }), [view, game]);
+  const groups = useMemo(() => groupLog(lines), [lines]);
+  const now = useNow(5000);
   const end = useRef<HTMLDivElement>(null);
+  const iAmThief = view.role === "thief";
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
   }, [lines.length, open]);
   if (!open) return null;
+  const lastSeq = lines.length ? lines[lines.length - 1].seq : -1;
   return (
-    <aside className="log-panel panel glass" aria-label="Game log">
-      <div className="row">
+    <aside className="log-panel panel glass" data-hud="side" aria-label="Case notes">
+      <div className="log-head">
+        <Icon name="pad" size={20} className="log-head-icon" />
         <b>Case notes</b>
         {game.phase === "roundOver" && <span className="chip gold">Full log revealed</span>}
         <span className="spacer" />
@@ -97,11 +184,41 @@ export function LogPanel({ view, game }: { view: RoomView; game: GameView }) {
         </button>
       </div>
       <div className="log-lines scroll" aria-live="polite">
-        {lines.map((l, i) => (
-          <div key={l.seq} className={`log-line tone-${l.tone}${l.secret ? " secret" : ""}`}>
-            {(i === 0 || lines[i - 1].turn !== l.turn) && l.turn > 0 && <div className="log-turn">Thief turn {l.turn}</div>}
-            <span className="log-icon">{l.secret ? "🔒" : l.icon}</span>
-            <span>{l.text}</span>
+        {lines.length === 0 && <p className="log-empty">Nothing to report yet.</p>}
+        {groups.map((g) => (
+          <div key={g.key} className="log-section">
+            {g.heading && g.turn > 0 && (
+              <div className="log-turn">
+                <span>Turn</span>
+                <b>{g.turn}</b>
+              </div>
+            )}
+            {g.actor !== "setup" && (
+              <div className={`log-actor ${g.actor === "thief" ? "is-thief" : "is-det"}`} style={g.actor === "thief" ? undefined : { ["--c" as string]: pawnHex(game, g.actor) }}>
+                {g.actor === "thief" ? <Icon name="mask" size={14} /> : <i className="p-dot" />}
+                {g.actor === "thief" ? (iAmThief ? "You" : "The thief") : `${pawnName(game, g.actor)}'s turn`}
+              </div>
+            )}
+            <div className={`log-group${g.actor === "thief" ? " is-thief" : g.actor === "setup" ? " is-setup" : " is-det"}`} style={g.actor === "thief" || g.actor === "setup" ? undefined : { ["--c" as string]: pawnHex(game, g.actor) }}>
+              {g.lines.map((l) => (
+                <div key={l.seq} className={`log-line tone-${l.tone}${l.secret ? " secret" : ""}${l.seq === lastSeq ? " latest" : ""}${l.at && now - l.at < 4000 ? " fresh" : ""}`} data-kind={l.kind}>
+                  <span className="log-ico" title={l.secret ? "Only you know this" : undefined}>
+                    <Icon name={l.icon} size={16} />
+                    {l.secret && <Icon name="lock" size={10} className="log-lock" />}
+                  </span>
+                  <span className="log-text">
+                    {l.parts.map((p, i) => (
+                      <PartView key={i} part={p} />
+                    ))}
+                  </span>
+                  {l.at ? (
+                    <time className="log-time" dateTime={new Date(l.at).toISOString()} title={new Date(l.at).toLocaleTimeString()}>
+                      {relativeTime(l.at, now)}
+                    </time>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         ))}
         <div ref={end} />

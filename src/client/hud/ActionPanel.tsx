@@ -9,17 +9,16 @@ import type { RoomView } from "../../shared/protocol";
 import { Icon } from "../components/Icon";
 import { activePawn, cellLabel, detectiveEnds, playerName, slotLabel } from "../game/derive";
 import type { BoardInteraction } from "../game/interact";
-import { useFx } from "../game/present";
 import { EMPTY_PLAN, useGameUi } from "../game/uiStore";
 import { sfx } from "../sfx";
 import { useStore } from "../store";
+import { useRolling } from "./DiceTray";
 
 type Send = ReturnType<typeof useStore.getState>["send"];
 
 export function ActionPanel({ view, game, ix }: { view: RoomView; game: GameView; ix: BoardInteraction }) {
   const send = useStore((s) => s.send);
-  const dice = useFx((s) => s.dice);
-  const rolling = !!dice && dice.until > performance.now();
+  const rolling = useRolling();
   const m = ix.mode;
 
   let body: React.ReactNode = null;
@@ -40,7 +39,9 @@ export function ActionPanel({ view, game, ix }: { view: RoomView; game: GameView
     case "detRoll":
       body = (
         <div className="action-row">
-          <p className="prompt">Roll the movement and action dice.</p>
+          <p className="prompt">
+            Roll both dice: the <b>black</b> one is how far you walk, the <b>white</b> one is your action (Eye, Scan or Motion).
+          </p>
           <button
             className="btn primary big"
             autoFocus
@@ -64,7 +65,7 @@ export function ActionPanel({ view, game, ix }: { view: RoomView; game: GameView
   }
   if (!body) return null;
   return (
-    <section className="action-panel panel glass" aria-label="Your actions">
+    <section className={`action-panel panel glass${m.kind === "detAct" ? " wide" : ""}`} data-hud="band" aria-label="Your actions">
       {body}
       {ix.hoverReason && <p className="hover-reason">{ix.hoverReason}</p>}
     </section>
@@ -309,98 +310,196 @@ function ThiefMove({ game, send }: { game: GameView; send: Send }) {
   );
 }
 
+const ACTION_INFO = {
+  eye: { name: "Eye", icon: "eye", blurb: "Look for the thief." },
+  scan: { name: "Scan", icon: "scan", blurb: "Ask every working camera at once. Dead (sabotaged) ones are found and removed." },
+  motion: { name: "Motion", icon: "motion", blurb: "The thief must say which floor colour they're on, or snip the wires (they only get two snips all round)." },
+} as const;
+
+/**
+ * Both rolled dice as one slim row: Move on the left, the action on the right. Each side is a line of
+ * controls plus a single caption that explains whatever you're hovering, so the rules are on hand
+ * without a paragraph per button.
+ */
 function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send: Send; canMove: boolean; canAct: boolean }) {
   const pawn = activePawn(game)!;
   const turn = game.turn as Extract<GameView["turn"], { kind: "detective" }>;
   const roll = turn.roll!;
   const moveDest = useGameUi((s) => s.moveDest);
   const eyePreview = useGameUi((s) => s.eyePreview);
+  const eyeTarget = useGameUi((s) => s.eyeTarget);
   const set = useGameUi((s) => s.set);
   const board = getBoard(game.board);
   const ends = canMove ? detectiveEnds(game, pawn, roll.move) : new Map();
   const knownOut = game.power.cut;
+  const info = ACTION_INFO[roll.action];
   const act = (action: Parameters<Send>[0] & { t: "game" }) => {
     send(action);
-    set({ eyePreview: null });
+    set({ eyePreview: null, eyeTarget: null });
   };
+  const pickEye = (target: "self" | number) => set({ eyeTarget: target, eyePreview: target });
+  const cancelEye = () => set({ eyeTarget: null, eyePreview: null });
+  const roomOf = (n: number) => {
+    const cam = game.cameras.find((c) => c.n === n);
+    return cam ? cellLabel(board, cam.cell) : "museum";
+  };
+  const eyeCaption =
+    eyePreview === "self"
+      ? "Your own eyes: straight lines from where you stand. A yes reveals the thief to everyone."
+      : typeof eyePreview === "number"
+        ? `Security camera ${eyePreview} (in the ${roomOf(eyePreview)}): answers yes or no from its own spot, without revealing the thief.`
+        : "Look for the thief with your own eyes or a numbered security camera. You'll confirm before it counts.";
+  const eyeHover = (v: "self" | number) => ({
+    onMouseEnter: () => set({ eyePreview: v }),
+    onFocus: () => set({ eyePreview: v }),
+    onMouseLeave: () => set({ eyePreview: null }),
+    onBlur: () => set({ eyePreview: null }),
+  });
   return (
-    <div className="det-cards">
-      <div className={`det-card${canMove ? "" : " done"}`}>
-        <div className="det-card-head">
+    <div className="det-row">
+      <div className={`det-seg${canMove ? "" : " done"}`}>
+        <div className="seg-line">
           <span className="die-badge num">{roll.move}</span>
-          <b>Move</b>
-          {!canMove && <Icon name="check" size={16} />}
-        </div>
-        {canMove ? (
-          moveDest === null ? (
-            <p className="small">Click a glowing space (up to {roll.move} step{roll.move === 1 ? "" : "s"}; backtracking allowed). {ends.size} options.</p>
-          ) : (
-            <div className="row wrap">
-              <span className="small">To the {cellLabel(board, moveDest)}</span>
+          <b>Move up to {roll.move}</b>
+          {!canMove && (
+            <>
+              <Icon name="check" size={16} />
+              <span className="faint small">Moved</span>
+            </>
+          )}
+          {canMove && moveDest !== null && (
+            <>
+              <span className="small">to the {cellLabel(board, moveDest)}</span>
+              <span className="spacer" />
               <button className="btn small ghost" onClick={() => set({ moveDest: null })}>
-                Undo
+                Undo <span className="kbd">Esc</span>
               </button>
-              <button className="btn small primary" onClick={() => {
-                send({ t: "game", action: { a: "move", dest: moveDest } });
-                set({ moveDest: null });
-              }}>
+              <button
+                className="btn small primary"
+                onClick={() => {
+                  send({ t: "game", action: { a: "move", dest: moveDest } });
+                  set({ moveDest: null });
+                }}
+              >
                 Move here <span className="kbd">Enter</span>
               </button>
-            </div>
-          )
-        ) : (
-          <p className="small faint">Moved.</p>
+            </>
+          )}
+        </div>
+        {canMove && (
+          <p className="seg-cap">
+            {moveDest === null ? (
+              <>
+                <b>Click a glowing space</b> ({ends.size} option{ends.size === 1 ? "" : "s"}). You can't stop on a painting or another detective.
+              </>
+            ) : (
+              "Happy with it? Move here, or click another glowing space."
+            )}
+          </p>
         )}
       </div>
 
-      <div className={`det-card${canAct ? "" : " done"}`}>
-        <div className="det-card-head">
-          <span className="die-badge act">{roll.action === "eye" ? <Icon name="eye" size={18} /> : roll.action === "scan" ? <Icon name="scan" size={18} /> : <Icon name="motion" size={18} />}</span>
-          <b>{roll.action === "eye" ? "Eye" : roll.action === "scan" ? "Scan" : "Motion"}</b>
-          {!canAct && <Icon name="check" size={16} />}
-        </div>
-        {canAct ? (
-          <div className="row wrap">
-            {roll.action === "eye" && (
-              <>
-                <button className="btn small primary" onMouseEnter={() => set({ eyePreview: "self" })} onFocus={() => set({ eyePreview: "self" })} onMouseLeave={() => set({ eyePreview: null })} onClick={() => act({ t: "game", action: { a: "eye", target: "self" } })} title="Can I see you? (E)">
+      <div className={`det-seg${canAct ? "" : " done"}`}>
+        {!canAct && (
+          <div className="seg-line">
+            <span className="die-badge act">
+              <Icon name={info.icon} size={18} />
+            </span>
+            <b>{info.name}</b>
+            <Icon name="check" size={16} />
+            <span className="faint small">Used</span>
+          </div>
+        )}
+        {canAct && roll.action === "eye" && eyeTarget === null && (
+          <>
+            <div className="seg-line">
+              <span className="die-badge act">
+                <Icon name="eye" size={18} />
+              </span>
+              <b>Eye</b>
+              <span className="grp">
+                <span className="grp-label">Your own eyes</span>
+                <button className="btn small primary" {...eyeHover("self")} onClick={() => pickEye("self")} title="Look from where you stand (E)">
                   <Icon name="eye" size={16} /> My eyes
                 </button>
-                {game.cameras.map((c) => (
-                  <button
-                    key={c.n}
-                    className={`btn small icon cam-btn${eyePreview === c.n ? " primary" : ""}`}
-                    disabled={knownOut}
-                    title={knownOut ? "The power is out" : `Check camera ${c.n} (Shift+${c.n})`}
-                    onMouseEnter={() => set({ eyePreview: c.n })}
-                    onFocus={() => set({ eyePreview: c.n })}
-                    onMouseLeave={() => set({ eyePreview: null })}
-                    onClick={() => act({ t: "game", action: { a: "eye", target: c.n } })}
-                  >
-                    {c.n}
-                  </button>
-                ))}
-              </>
-            )}
-            {roll.action === "scan" && (
-              <button className="btn small primary" disabled={knownOut} onClick={() => act({ t: "game", action: { a: "scan" } })} title="Scan all cameras (S)">
-                <Icon name="scan" size={16} /> Scan cameras
+              </span>
+              <span className="grp">
+                <span className="grp-label">Security cameras</span>
+                <span className="cam-row">
+                  {game.cameras.map((c) => (
+                    <button
+                      key={c.n}
+                      className={`cam-btn${eyePreview === c.n ? " active" : ""}`}
+                      disabled={knownOut}
+                      aria-label={`Security camera ${c.n}`}
+                      title={knownOut ? "The power is out" : `Security camera ${c.n}, in the ${roomOf(c.n)} (Shift+${c.n})`}
+                      {...eyeHover(c.n)}
+                      onClick={() => pickEye(c.n)}
+                    >
+                      <i>{c.n}</i>
+                    </button>
+                  ))}
+                </span>
+              </span>
+              <span className="spacer" />
+              <SkipButton act={act} />
+            </div>
+            <p className="seg-cap">{knownOut && typeof eyePreview !== "number" ? "The power is out, so cameras can't answer. Step on the power switch to bring them back." : eyeCaption}</p>
+          </>
+        )}
+        {canAct && roll.action === "eye" && eyeTarget !== null && (
+          <>
+            <div className="seg-line">
+              <span className="die-badge act">
+                <Icon name="eye" size={18} />
+              </span>
+              <b>{eyeTarget === "self" ? "Use my eyes?" : `Ask camera ${eyeTarget}?`}</b>
+              <span className="spacer" />
+              <button className="btn small ghost" onClick={cancelEye}>
+                Cancel <span className="kbd">Esc</span>
               </button>
-            )}
-            {roll.action === "motion" && (
-              <button className="btn small primary" disabled={knownOut} onClick={() => act({ t: "game", action: { a: "motion" } })} title="Motion detectors (M)">
-                <Icon name="motion" size={16} /> Motion detectors
+              <button className="btn small primary" autoFocus onClick={() => act({ t: "game", action: { a: "eye", target: eyeTarget } })}>
+                <Icon name="check" size={16} /> {eyeTarget === "self" ? "Look" : `Check camera ${eyeTarget}`} <span className="kbd">Enter</span>
               </button>
-            )}
-            <button className="btn small ghost" onClick={() => act({ t: "game", action: { a: "skipAction" } })} title="Skip (X)">
-              Skip
-            </button>
-            {knownOut && roll.action !== "eye" && <span className="small faint">The power is out: step on the switch (P) to restore it.</span>}
-          </div>
-        ) : (
-          <p className="small faint">Used.</p>
+            </div>
+            <p className="seg-cap">
+              {eyeTarget === "self" ? (
+                <>
+                  Look from where you stand. If you spot the thief, <b className="alarm-text">they're revealed</b> to everyone.
+                </>
+              ) : (
+                <>
+                  Security camera {eyeTarget} (in the {roomOf(eyeTarget)}) answers yes or no to everyone, without revealing the thief.
+                </>
+              )}
+            </p>
+          </>
+        )}
+        {canAct && roll.action !== "eye" && (
+          <>
+            <div className="seg-line">
+              <span className="die-badge act">
+                <Icon name={info.icon} size={18} />
+              </span>
+              <b>{info.name}</b>
+              <button className="btn small primary" disabled={knownOut} onClick={() => act({ t: "game", action: roll.action === "scan" ? { a: "scan" } : { a: "motion" } })} title={roll.action === "scan" ? "Scan all cameras (S)" : "Motion detectors (M)"}>
+                <Icon name={info.icon} size={16} /> {roll.action === "scan" ? "Scan cameras" : "Motion detectors"} <span className="kbd">{roll.action === "scan" ? "S" : "M"}</span>
+              </button>
+              <span className="spacer" />
+              <SkipButton act={act} />
+            </div>
+            <p className="seg-cap">{knownOut ? "The power is out: step on the switch to restore it." : info.blurb}</p>
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+function SkipButton({ act }: { act: (a: Parameters<Send>[0] & { t: "game" }) => void }) {
+  return (
+    <button className="btn small ghost" onClick={() => act({ t: "game", action: { a: "skipAction" } })} title="Give up this action (X)">
+      Skip <span className="kbd">X</span>
+    </button>
   );
 }

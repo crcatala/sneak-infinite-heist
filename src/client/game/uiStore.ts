@@ -29,9 +29,13 @@ export interface GameUi {
   moveDest: Cell | null;
   /** Detective: action being previewed ("self" or a camera number). */
   eyePreview: "self" | number | null;
+  /** Detective: the Eye target picked (step 1), waiting for Confirm or Cancel (step 2). */
+  eyeTarget: "self" | number | null;
   camera: CameraPreset;
   /** Bumps to re-apply the current camera preset. */
   cameraNonce: number;
+  /** Bumps when the HUD's layout settles somewhere new, so the camera re-fits the board into the free space. */
+  hudNonce: number;
   danger: boolean;
   heat: boolean;
   padOpen: boolean;
@@ -52,8 +56,10 @@ export const useGameUi = create<GameUi>((set) => ({
   plan: EMPTY_PLAN,
   moveDest: null,
   eyePreview: null,
+  eyeTarget: null,
   camera: "overview",
   cameraNonce: 0,
+  hudNonce: 0,
   danger: usePrefs.getState().dangerOverlay,
   heat: true,
   padOpen: typeof window !== "undefined" ? window.innerWidth > 900 : true,
@@ -62,5 +68,5 @@ export const useGameUi = create<GameUi>((set) => ({
   cursor: null,
   replayTurn: null,
   set: (p) => set(p),
-  resetTurn: () => set({ plan: EMPTY_PLAN, moveDest: null, eyePreview: null, held: null, cursor: null }),
+  resetTurn: () => set({ plan: EMPTY_PLAN, moveDest: null, eyePreview: null, eyeTarget: null, held: null, cursor: null }),
 }));

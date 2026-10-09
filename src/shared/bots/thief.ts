@@ -79,7 +79,7 @@ export function thiefAction(view: GameView, me: string, rng: Rng): GameAction | 
   // What the detectives will believe right after this (hidden) move.
   const publicEvents = view.events.filter((e) => e.vis !== "thief");
   const nextSeq = (view.events[view.events.length - 1]?.seq ?? 0) + 1;
-  const pub = deduce(view.board, [...publicEvents, { type: "thiefMoved", turn: view.thief.turns + 1, seq: nextSeq, vis: "detectives" }]);
+  const pub = deduce(view.board, [...publicEvents, { type: "thiefMoved", turn: view.thief.turns + 1, seq: nextSeq, vis: "detectives", at: 0 }]);
   const nextDetective = view.detectives[view.nextDetective]?.cell ?? null;
   const revealed = view.thief.revealed;
   // Lookouts the next detective can plausibly reach (within 4 steps) before using an Eye.

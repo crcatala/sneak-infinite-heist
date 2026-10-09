@@ -41,6 +41,19 @@ const PATHS: Record<string, string> = {
   skip: "M5 5l8 7-8 7z M15 5v14",
   flag: "M5 21V4 M5 4h12l-2 4 2 4H5",
   sparkle: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z",
+  // Case-notes set: one glyph per kind of event, so the log can be scanned by shape and colour.
+  moon: "M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z",
+  sunrise: "M3 19h18 M7 19a5 5 0 0 1 10 0 M12 7v3 M4.8 10.8l1.8 1.8 M19.2 10.8l-1.8 1.8",
+  siren: "M7 19v-6a5 5 0 0 1 10 0v6 M4 19h16 M12 3v2 M4.5 6.5 6 8 M19.5 6.5 18 8",
+  handcuffs: "M7 11a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M17 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M9.8 11.8l4.4-2.6",
+  escape: "M13 4H6v16h7 M10 12h11 M17 8l4 4-4 4",
+  burst: "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M5.6 5.6l2.8 2.8 M15.6 15.6l2.8 2.8 M18.4 5.6l-2.8 2.8 M8.4 15.6l-2.8 2.8",
+  boltOff: "M13 2 4 14h7l-1 8 9-12h-7z M3 3l18 18",
+  bulb: "M9 18h6 M10 21h4 M12 3a6 6 0 0 0-3.5 10.9c.7.5 1 1.2 1 2.1h5c0-.9.3-1.6 1-2.1A6 6 0 0 0 12 3z",
+  block: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M5.6 5.6l12.8 12.8",
+  zzz: "M4 5h6l-6 7h6 M13 12h5l-5 6h5",
+  shuffle: "M3 7h4c3 0 4 10 8 10h6 M3 17h4c1.5 0 2.4-2.4 3.4-4.5 M14 9c.6-1.2 1.5-2 3-2h4 M18 4l3 3-3 3 M18 14l3 3-3 3",
+  steal: "M5 12h14v8H5z M12 2v7 M8.5 5.5 12 2l3.5 3.5",
 };
 
 export type IconName = keyof typeof PATHS;

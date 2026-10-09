@@ -1,7 +1,9 @@
-// Two 3D dice (black numbers, white Eye/S/M) tumbling in a small tray and landing on the result the
-// server already decided. No physics: a spin that eases into the target orientation. Skippable.
+// Two 3D dice (black numbers, white Eye/S/M) tumbling in the middle of the board and landing on the
+// result the server already decided. No physics: a spin that eases into the target orientation.
+// They then glide into the dock beside the turn bar and stay there, visible to every player, until
+// the detective's turn is over.
 
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFx } from "../game/present";
@@ -29,6 +31,7 @@ function upFor(slot: number): THREE.Quaternion {
 
 function Die({ kind, value, x, startedAt, duration }: { kind: "number" | "action"; value: number | string; x: number; startedAt: number; duration: number }) {
   const ref = useRef<THREE.Group>(null);
+  const { invalidate } = useThree();
   const materials = useMemo(
     () =>
       (kind === "number" ? NUMBER_SLOTS.map((n) => numberDieFace(n)) : ACTION_SLOTS.map((f) => actionDieFace(f))).map(
@@ -50,6 +53,8 @@ function Die({ kind, value, x, startedAt, duration }: { kind: "number" | "action
     g.quaternion.copy(tumble.multiply(target));
     const bounce = Math.abs(Math.sin(t * Math.PI * 3)) * (1 - t) * 0.9;
     g.position.set(x - (1 - t) * 1.4, bounce, 0);
+    // The canvas renders on demand: keep asking for frames only while the dice are still moving.
+    if (t < 1) invalidate();
   });
   return (
     <group ref={ref}>
@@ -60,29 +65,54 @@ function Die({ kind, value, x, startedAt, duration }: { kind: "number" | "action
   );
 }
 
-export function DiceTray() {
+/** True while the dice are still tumbling (the action panel waits for them before showing choices). */
+export function useRolling(): boolean {
   const dice = useFx((s) => s.dice);
-  const slow = useStore((s) => s.debug.slowMotion);
-  const [visible, setVisible] = useState<typeof dice>(null);
-
+  const [, again] = useState(0);
   useEffect(() => {
     if (!dice) return;
-    setVisible(dice);
-    const hold = Math.max(0, dice.until - performance.now()) + 1400 * (slow ? 6 : 1);
-    const t = setTimeout(() => setVisible((v) => (v?.id === dice.id ? null : v)), hold);
+    const ms = dice.until - performance.now();
+    if (ms <= 0) return;
+    const t = setTimeout(() => again((n) => n + 1), ms + 30);
     return () => clearTimeout(t);
-  }, [dice, slow]);
+  }, [dice]);
+  return !!dice && dice.until > performance.now();
+}
 
-  if (!visible) return null;
-  const duration = Math.max(1, visible.until - (visible.until - 1100 * (slow ? 6 : 1) * (reducedMotion() ? 0.5 : 1)));
-  const startedAt = visible.until - duration;
+export function DiceTray() {
+  const dice = useFx((s) => s.dice);
+  const docked = useFx((s) => s.diceDocked);
+  const slow = useStore((s) => s.debug.slowMotion);
+  // Keep the last roll around while it fades out at the end of the turn.
+  const [shown, setShown] = useState<typeof dice>(dice);
+  const [leaving, setLeaving] = useState(false);
+
+  useEffect(() => {
+    if (dice) {
+      setShown(dice);
+      setLeaving(false);
+      return;
+    }
+    setLeaving(true);
+    const t = setTimeout(() => setShown(null), 400);
+    return () => clearTimeout(t);
+  }, [dice]);
+
+  if (!shown) return null;
+  const duration = 1100 * (slow ? 6 : 1) * (reducedMotion() ? 0.5 : 1);
+  // A roll restored after a reload (`until` 0) is already at rest.
+  const startedAt = shown.until === 0 ? 0 : shown.until - duration;
   return (
-    <div className="dice-tray" aria-label={`Rolled ${visible.move} and ${visible.action}`} onClick={() => useFx.getState().set({ dice: { ...visible, until: performance.now() } })}>
-      <Canvas camera={{ position: [0, 2.6, 4.2], fov: 35 }} dpr={[1, 2]} gl={{ alpha: true, antialias: true }} onCreated={({ camera }) => camera.lookAt(0, 0.2, 0)}>
+    <div
+      className={`dice-tray${docked ? " docked" : ""}${leaving ? " leaving" : ""}`}
+      role="img"
+      aria-label={`Rolled ${shown.move} and ${shown.action === "eye" ? "an Eye" : shown.action === "scan" ? "Scan" : "Motion"}`}
+    >
+      <Canvas frameloop="demand" camera={{ position: [0, 2.6, 4.2], fov: 35 }} dpr={[1, 2]} gl={{ alpha: true, antialias: true }} onCreated={({ camera }) => camera.lookAt(0, 0.2, 0)}>
         <ambientLight intensity={0.8} />
         <directionalLight position={[2, 5, 3]} intensity={1.6} />
-        <Die kind="number" value={visible.move} x={-0.75} startedAt={startedAt} duration={duration} key={`n${visible.id}`} />
-        <Die kind="action" value={visible.action} x={0.75} startedAt={startedAt} duration={duration} key={`a${visible.id}`} />
+        <Die kind="number" value={shown.move} x={-0.75} startedAt={startedAt} duration={duration} key={`n${shown.id}`} />
+        <Die kind="action" value={shown.action} x={0.75} startedAt={startedAt} duration={duration} key={`a${shown.id}`} />
       </Canvas>
     </div>
   );

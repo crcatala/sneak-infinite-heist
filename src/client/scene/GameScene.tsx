@@ -17,7 +17,7 @@ import { CameraRig } from "./CameraRig";
 import { cellAtWorld, cellPos, FLOOR_Y } from "./layout";
 import { Floors, Plaza, Plinths, Walls } from "./Museum";
 import { Marker, NumberBadge, PathDots, SpotColumn, TileLayer } from "./Overlays";
-import { CameraPiece, Padlock, PaintingPiece, Pawn, ThiefPawn } from "./pieces";
+import { CameraPiece, Padlock, PaintingPiece, Pawn, PowerSwitch, ThiefPawn } from "./pieces";
 import { NightLights, SceneCanvas, type LightMood } from "./SceneCanvas";
 import { discTexture, glowTexture } from "./textures";
 
@@ -84,7 +84,7 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
   return (
     <>
       <NightLights mood={mood} />
-      <CameraRig preset={ui.camera} nonce={ui.cameraNonce} focus={focus} onWallScale={setWallScale} portrait={portrait} />
+      <CameraRig board={board} preset={ui.camera} nonce={ui.cameraNonce} focus={focus} onWallScale={setWallScale} portrait={portrait} />
       <Floors board={board} patterns={colourBlind} />
       <Walls board={board} height={wallScale} />
       <Plinths board={board} />
@@ -137,6 +137,13 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
           </group>
         );
       })}
+
+      {/* the power switch */}
+      <group position={cellPos(board, board.power)}>
+        <PopIn>
+          <PowerSwitch on={!game.power.cut} />
+        </PopIn>
+      </group>
 
       {/* cameras */}
       {game.cameras.map((c) => (

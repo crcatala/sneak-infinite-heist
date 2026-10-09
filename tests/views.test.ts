@@ -6,7 +6,7 @@ import { act, c, D1, detectiveTurn, inPlay, THIEF } from "./helpers";
 
 describe("views (§6)", () => {
   it("filters events by visibility", () => {
-    const ev = (vis: GameEvent["vis"]) => ({ type: "powerCut", seq: 1, vis }) as GameEvent;
+    const ev = (vis: GameEvent["vis"]) => ({ type: "powerCut", seq: 1, vis, at: 0 }) as GameEvent;
     expect(canSeeEvent("thief", ev("thief"))).toBe(true);
     expect(canSeeEvent("detectives", ev("thief"))).toBe(false);
     expect(canSeeEvent("detectives", ev("detectives"))).toBe(true);
@@ -25,7 +25,7 @@ describe("views (§6)", () => {
     expect(dv.thief).toEqual({ controller: THIEF, revealed: false, turns: 1, snipsLeft: 2, sightings: 0, haul: 0, cell: null });
     // Same shape, same count, same timing: a hidden move is just "the thief moved".
     const moved = dv.events.filter((e) => e.type === "thiefMoved");
-    expect(moved).toEqual([{ type: "thiefMoved", turn: 1, seq: moved[0].seq, vis: "detectives" }]);
+    expect(moved).toEqual([{ type: "thiefMoved", turn: 1, seq: moved[0].seq, vis: "detectives", at: moved[0].at }]);
     // Lock faces stay hidden from everyone under random placement.
     expect(tv.locks.every((l) => l.face === undefined)).toBe(true);
     expect(dv.locks.every((l) => l.face === undefined)).toBe(true);
