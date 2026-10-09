@@ -1255,6 +1255,41 @@
   align-items: center;
   gap: 10px;
 }
+.replay-controls > span {
+  white-space: nowrap;
+}
+.replay-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.replay-replies {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 2.6em;
+  max-height: 6.5em;
+  overflow: auto;
+}
+.replay-replies li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.replay-replies li[data-tone="alarm"] {
+  color: var(--lamp-400);
+}
+.replay-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
 .replay-caption {
   margin: 0;
   min-height: 2.6em;

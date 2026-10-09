@@ -45,6 +45,8 @@ export interface GameUi {
   cursor: Cell | null;
   /** Round-end replay: show the thief's path up to this turn on the board. */
   replayTurn: number | null;
+  /** Round-end replay: also show where the detectives went (off = the thief's path only). */
+  replayDetectives: boolean;
   set: (p: Partial<GameUi>) => void;
   resetTurn: () => void;
 }
@@ -67,6 +69,7 @@ export const useGameUi = create<GameUi>((set) => ({
   paused: false,
   cursor: null,
   replayTurn: null,
+  replayDetectives: true,
   set: (p) => set(p),
   resetTurn: () => set({ plan: EMPTY_PLAN, moveDest: null, eyePreview: null, eyeTarget: null, held: null, cursor: null }),
 }));

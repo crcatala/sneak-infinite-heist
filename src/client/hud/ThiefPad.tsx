@@ -11,7 +11,13 @@ import { useGameUi } from "../game/uiStore";
 const S = 20; // px per cell
 const PAD = 14;
 
-export function PadMap({ game, upTo, showAll = true, highlight }: { game: GameView; upTo?: number; showAll?: boolean; highlight?: Cell | null }) {
+/** Detectives drawn on the pad during the round-end replay: their routes and where each one stands. */
+export interface PadDetectives {
+  moves: { pawn: string; from: Cell; path: Cell[]; hex: string; latest: boolean }[];
+  pawns: { pawn: string; cell: Cell; hex: string; initial: string }[];
+}
+
+export function PadMap({ game, upTo, showAll = true, highlight, detectives }: { game: GameView; upTo?: number; showAll?: boolean; highlight?: Cell | null; detectives?: PadDetectives }) {
   const board = getBoard(game.board);
   const W = board.width * S + PAD * 2;
   const H = board.height * S + PAD * 2;
@@ -107,6 +113,10 @@ export function PadMap({ game, upTo, showAll = true, highlight }: { game: GameVi
           </g>
         );
       })}
+      {detectives?.moves.map((m, i) => {
+        const d = [m.from, ...m.path].map(pt).map(([x, y], k) => `${k ? "L" : "M"}${x} ${y}`).join(" ");
+        return <path key={`dm${i}`} d={d} fill="none" stroke={m.hex} strokeWidth={m.latest ? 3 : 2} strokeLinecap="round" strokeLinejoin="round" opacity={m.latest ? 0.95 : 0.3} className="pad-detective-route" />;
+      })}
       {showAll &&
         trail.map((t, i) => {
           const pts = [t.from, ...t.path].map(pt);
@@ -127,6 +137,17 @@ export function PadMap({ game, upTo, showAll = true, highlight }: { game: GameVi
         const [x, y] = pt(here);
         return <circle cx={x} cy={y} r="7.5" fill="none" stroke="#ffc14d" strokeWidth="2.4" className="pad-here" />;
       })()}
+      {detectives?.pawns.map((p) => {
+        const [x, y] = pt(p.cell);
+        return (
+          <g key={`dp${p.pawn}`} className="pad-detective">
+            <circle cx={x} cy={y} r="6.5" fill={p.hex} stroke="#3a2e2a" strokeWidth="1.6" />
+            <text x={x} y={y + 3} textAnchor="middle" fontSize="8" fontWeight="800" fill="#1b1730">
+              {p.initial}
+            </text>
+          </g>
+        );
+      })}
       {highlight !== undefined && highlight !== null && (() => {
         const [x, y] = pt(highlight);
         return <circle cx={x} cy={y} r="9" fill="none" stroke="#b81e3e" strokeWidth="2.4" />;
