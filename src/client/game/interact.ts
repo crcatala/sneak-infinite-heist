@@ -145,7 +145,7 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
     const toggleMark = (cell: Cell) => {
       if (!canMark || !board.region[cell]) return;
       act({ a: "mark", cell, on: !game.marks.includes(cell) });
-      sfx.menuMove();
+      sfx.markPencil();
     };
     context = toggleMark;
 

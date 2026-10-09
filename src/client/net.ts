@@ -3,6 +3,7 @@
 import { CLOSE } from "../shared/close";
 import type { ClientMessage, ServerMessage } from "../shared/protocol";
 import { loadIdentity, loadName, saveIdentity } from "./identity";
+import { sfx } from "./sfx";
 import { useStore } from "./store";
 
 let socket: WebSocket | null = null;
@@ -137,6 +138,7 @@ function open() {
         break;
       case "emote":
         store.showEmote(msg.by, msg.emote);
+        sfx.emote();
         break;
       case "error":
         if (!welcomed) {

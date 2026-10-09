@@ -8,7 +8,7 @@ import { loadIdentity, loadName, saveName } from "../identity";
 import { connect, disconnect } from "../net";
 import { presenceChanges } from "../presence";
 import { navigate } from "../router";
-import { setMusic } from "../sfx";
+import { setMusic, sfx } from "../sfx";
 import { useStore } from "../store";
 import { Lobby } from "./Lobby";
 
@@ -38,6 +38,7 @@ function usePresenceToasts() {
             pending.current.delete(p.id);
             announced.current.add(p.id);
             toast(`${p.name} disconnected`, "bad", "📡");
+            sfx.playerLeft();
           }, PRESENCE_GRACE_MS),
         );
       }
@@ -46,7 +47,10 @@ function usePresenceToasts() {
         if (timer) {
           clearTimeout(timer);
           pending.current.delete(p.id);
-        } else if (announced.current.delete(p.id)) toast(`${p.name} is back`, "good", "👋");
+        } else if (announced.current.delete(p.id)) {
+          toast(`${p.name} is back`, "good", "👋");
+          sfx.playerBack();
+        }
       }
     }
     prev.current = players;
