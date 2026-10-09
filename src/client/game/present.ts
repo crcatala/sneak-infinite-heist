@@ -5,28 +5,15 @@
 // viewer is allowed to see, so there's nothing hidden to play.
 
 import { create } from "zustand";
-import { COLOUR_LABEL, getBoard, type Cell, type FloorColour } from "../../shared/board/model";
-import { ARTWORKS } from "../../shared/characters";
+import { getBoard, type Cell, type FloorColour } from "../../shared/board/model";
 import type { GameEvent } from "../../shared/game/state";
-import type { GameView } from "../../shared/game/views";
-import type { RoomView } from "../../shared/protocol";
 import { reducedMotion } from "../prefs";
 import { setMusic, sfx } from "../sfx";
 import { useStore } from "../store";
-import { cellLabel, pawnName, playerName, slotLabel } from "./derive";
+import { pawnName } from "./derive";
+import { announceOf, lastAnnouncement, restoredRoll, type Announcement, type Ctx } from "./narrate";
 
-export type Tone = "info" | "good" | "bad" | "secret" | "alarm";
-
-export interface LogLine {
-  seq: number;
-  icon: string;
-  text: string;
-  tone: Tone;
-  /** Only the thief could see this (shown with a lock in the log). */
-  secret: boolean;
-  /** Thief turn this happened in. */
-  turn: number;
-}
+export { buildLog, describe, type LogLine, type Part, type Tone } from "./narrate";
 
 export interface Banner {
   id: number;
@@ -55,8 +42,12 @@ export interface DiceRoll {
 
 interface Fx {
   banner: Banner | null;
+  announce: Announcement | null;
   flashes: Flash[];
+  /** The detective's roll for the turn in progress: it stays up (docked beside the turn bar) until the turn ends. */
   dice: DiceRoll | null;
+  /** The dice have moved out of the middle of the board into the dock. */
+  diceDocked: boolean;
   /** "Somewhere on these lines": a camera saw the hidden thief. Cleared on the next thief move. */
   hint: { cells: Cell[]; camera: number } | null;
   lifting: { painting: number; cell: Cell; until: number } | null;
@@ -70,8 +61,10 @@ interface Fx {
 
 export const useFx = create<Fx>((set) => ({
   banner: null,
+  announce: null,
   flashes: [],
   dice: null,
+  diceDocked: false,
   hint: null,
   lifting: null,
   flipping: null,
@@ -81,119 +74,6 @@ export const useFx = create<Fx>((set) => ({
 }));
 
 let nextId = 1;
-
-export interface Ctx {
-  view: RoomView;
-  game: GameView;
-}
-
-const COLOUR_WORD = (c: FloorColour) => COLOUR_LABEL[c].toUpperCase();
-
-/** Log line for an event, from the viewer's point of view. */
-export function describe(e: GameEvent, ctx: Ctx): LogLine | null {
-  const { game, view } = ctx;
-  const board = getBoard(game.board);
-  const who = (pawn: string) => pawnName(game, pawn);
-  const thiefName = playerName(view, game.thief.controller);
-  const iAmThief = view.role === "thief";
-  const line = (icon: string, text: string, tone: Tone = "info"): LogLine => ({ seq: e.seq, icon, text, tone, secret: e.vis === "thief", turn: 0 });
-  switch (e.type) {
-    case "phase":
-      return e.phase === "setupPaintings"
-        ? line("🖼️", "The detectives hang the paintings.")
-        : e.phase === "setupCameras"
-          ? line("📹", "The detectives install the cameras.")
-          : e.phase === "setupDetectives"
-            ? line("🕵️", "The detectives take their posts.")
-            : e.phase === "setupLocks"
-              ? line("🔒", "The detectives set the locks.")
-              : null;
-    case "locksShuffled":
-      return line("🔒", "The locks are shuffled face down.");
-    case "locksPlaced":
-      return line("🔒", "Locks placed: you know which exits are open.", "secret");
-    case "playStarted":
-      return line("🌙", "Lights out. The heist begins!", "good");
-    case "thiefTurn":
-      return null;
-    case "thiefMoved":
-      if (e.vis === "thief") return line("👣", e.entry ? `You slipped in through the ${slotLabel(board, e.entry)} and crept ${e.path!.length} space${e.path!.length === 1 ? "" : "s"}.` : `You crept ${e.path!.length} space${e.path!.length === 1 ? "" : "s"}.`, "secret");
-      if (e.path) return line("🏃", `${thiefName}, the thief, dashed ${e.path.length} space${e.path.length === 1 ? "" : "s"} in plain sight.`, "alarm");
-      return line("👣", e.turn === 1 ? "The thief slipped inside…" : "The thief moved.");
-    case "paintingVanished":
-      return line("🖼️", `"${ARTWORKS[e.painting].title}" vanished from the ${cellLabel(board, e.cell)}!`, "bad");
-    case "paintingStolen":
-      if (e.pending) return line("💰", `You marked "${ARTWORKS[e.painting].title}". It leaves the wall at the start of your next turn.`, "secret");
-      return line("💰", `The thief grabbed "${ARTWORKS[e.painting].title}"${e.onReveal ? " as the lights hit them" : ""}!`, "bad");
-    case "cameraDisabled":
-      return line("📹", `You disabled camera ${e.n}. Nobody knows… yet.`, "secret");
-    case "powerCut":
-      return line("⚡", "You cut the power. Cameras and motion detectors are dead until someone finds out.", "secret");
-    case "lockTried":
-      return e.face === "open" ? line("🔓", `The ${slotLabel(board, e.slot)} is OPEN!`, "alarm") : line("🔒", `Someone rattled the ${slotLabel(board, e.slot)}: LOCKED. The thief was right there!`, "info");
-    case "detectiveTurn":
-      return null;
-    case "rolled":
-      return line("🎲", `${who(e.pawn)} rolled ${e.move} and ${e.action === "eye" ? "an Eye" : e.action === "scan" ? "Scan" : "Motion"}.`);
-    case "boxedIn":
-      return line("🧱", `${who(e.pawn)} is boxed in and can't move.`);
-    case "detectiveMoved":
-      return line("👟", `${who(e.pawn)} moved ${e.path.length} space${e.path.length === 1 ? "" : "s"} to the ${cellLabel(board, e.to)}.`);
-    case "powerRestored":
-      return e.silent ? line("💡", `${who(e.pawn)} stepped on the switch and quietly restored your power cut.`, "secret") : line("💡", `${who(e.pawn)} flipped the switch: the lights are back on!`, "good");
-    case "eye":
-      return e.seen ? line("👁️", `${who(e.pawn)} looked around… and SAW THE THIEF!`, "alarm") : line("👁️", `${who(e.pawn)} looked around: nothing.`);
-    case "thiefRevealed":
-      return line("🚨", iAmThief ? "You've been spotted! Everyone can see you now." : "The thief is revealed! Chase them down!", "alarm");
-    case "camera":
-      return e.result === "sees"
-        ? line("📹", `Camera ${e.n} can see the thief!`, "alarm")
-        : e.result === "clear"
-          ? line("📹", `Camera ${e.n}: no sign of the thief.`)
-          : e.result === "dead"
-            ? line("💥", `Camera ${e.n} isn't working: sabotaged! It's taken away.`, "bad")
-            : line("⚡", `${who(e.pawn)} tried camera ${e.n}…`);
-    case "scan":
-      if (e.result === "powerOut") return line("⚡", `${who(e.pawn)} tried a scan…`);
-      return line(
-        "📡",
-        `Scan: ${e.removed.length ? `camera${e.removed.length > 1 ? "s" : ""} ${e.removed.join(", ")} found dead and removed. ` : ""}${e.seeing.length ? `camera${e.seeing.length > 1 ? "s" : ""} ${e.seeing.join(", ")} see${e.seeing.length > 1 ? "" : "s"} the thief!` : "no camera sees the thief."}`,
-        e.seeing.length ? "alarm" : e.removed.length ? "bad" : "info",
-      );
-    case "powerOutDiscovered":
-      return line("⚡", "The power is out! Cameras and motion detectors are dead.", "bad");
-    case "motionAsked":
-      return line("📶", `${who(e.pawn)} triggered the motion detectors…`);
-    case "motion":
-      return e.result === "answered"
-        ? line("📶", `Motion detectors: the thief is on ${COLOUR_WORD(e.colour!)}.`, "alarm")
-        : e.result === "snipped"
-          ? line("✂️", `The thief snipped the motion detectors (${e.snipsLeft} snip${e.snipsLeft === 1 ? "" : "s"} left).`, "bad")
-          : line("⚡", `${who(e.pawn)} tried the motion detectors…`);
-    case "actionSkipped":
-      return line("💤", `${who(e.pawn)} skipped their action.`);
-    case "captured":
-      return line("🚔", `${who(e.pawn)} NABBED the thief${e.wasHidden ? " in the dark" : ""}!`, e.vis === "all" && iAmThief ? "bad" : "good");
-    case "escaped":
-      return line("🏃", `The thief ESCAPED through the ${slotLabel(board, e.slot)} with ${e.paintings} painting${e.paintings === 1 ? "" : "s"}!`, iAmThief ? "good" : "bad");
-    case "dawn":
-      return line("🌅", "Dawn breaks and the museum opens. The thief is trapped!", iAmThief ? "bad" : "good");
-    case "roundOver":
-      return null;
-  }
-}
-
-/** Builds the full log with thief-turn numbers. */
-export function buildLog(ctx: Ctx): LogLine[] {
-  const out: LogLine[] = [];
-  let turn = 0;
-  for (const e of ctx.game.events) {
-    if (e.type === "thiefTurn") turn = e.turn;
-    const l = describe(e, ctx);
-    if (l) out.push({ ...l, turn });
-  }
-  return out;
-}
 
 // --- the player ---------------------------------------------------------------------------------
 
@@ -207,8 +87,9 @@ export function setFastForward(on: boolean) {
   fastForward = on;
 }
 
-/** Skips the event currently playing (and its banner). */
+/** Skips the event currently playing (and its banner), and docks the announcement. */
 export function skipFx() {
+  dockAnnouncement();
   skipCurrent?.();
 }
 
@@ -224,7 +105,8 @@ export function resetPlayer(seq = -1) {
   clearTimeout(timer);
   timer = undefined;
   skipCurrent = null;
-  useFx.setState({ banner: null, flashes: [], dice: null, hint: null, lifting: null, flipping: null, playing: false, showResult: false });
+  clearTimeout(dockTimer);
+  useFx.setState({ banner: null, announce: null, flashes: [], dice: null, diceDocked: false, hint: null, lifting: null, flipping: null, playing: false, showResult: false });
 }
 
 /** Feed the latest view: new events are queued and played in order. */
@@ -234,6 +116,7 @@ export function ingest(ctx: Ctx) {
     // First look at this game: don't replay history, just show the state.
     lastSeq = events.length ? events[events.length - 1].seq : 0;
     useFx.setState({ showResult: ctx.game.phase === "roundOver" });
+    seedFromHistory(ctx);
     return;
   }
   const fresh = events.filter((e) => e.seq > lastSeq);
@@ -274,7 +157,37 @@ let bannerOf = 0;
 
 function banner(text: string, tone: Banner["tone"], sub?: string) {
   bannerOf = nextId++;
+  // The banner is the headline now: tuck any announcement out of its way.
+  dockAnnouncement();
   useFx.setState({ banner: { id: bannerOf, text, sub, tone } });
+}
+
+// --- announcements and dice -----------------------------------------------------------------------
+
+const HERO_MS = 3000;
+let dockTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Shows a headline large for a few seconds, then docks it. Pass `heroMs` to shorten the big moment. */
+function announce(a: Omit<Announcement, "id" | "stage">, heroMs = HERO_MS) {
+  clearTimeout(dockTimer);
+  useFx.setState({ announce: { ...a, id: nextId++, stage: a.hero ? "hero" : "docked" } });
+  if (a.hero) dockTimer = setTimeout(dockAnnouncement, heroMs * speed());
+}
+
+/** Glides the current announcement (and the dice, if they're out) to the dock. */
+export function dockAnnouncement() {
+  clearTimeout(dockTimer);
+  const { announce: a, dice } = useFx.getState();
+  if (a?.stage === "hero") useFx.setState({ announce: { ...a, stage: "docked" } });
+  if (dice && !useFx.getState().diceDocked) useFx.setState({ diceDocked: true });
+}
+
+/** After a reload or a late join: restore the dock (last big move, and this turn's dice) without playing anything. */
+function seedFromHistory(ctx: Ctx) {
+  const headline = lastAnnouncement(ctx);
+  if (headline) useFx.setState({ announce: { ...headline, id: nextId++, stage: "docked" } });
+  const roll = restoredRoll(ctx.game);
+  if (roll) useFx.setState({ dice: { id: nextId++, ...roll, until: 0 }, diceDocked: true });
 }
 
 function flash(f: Omit<Flash, "id" | "until">, ms: number) {
@@ -288,10 +201,11 @@ function flash(f: Omit<Flash, "id" | "until">, ms: number) {
 function play(e: GameEvent, ctx: Ctx): number {
   const { game, view } = ctx;
   const board = getBoard(game.board);
-  const toast = useStore.getState().toast;
   const iAmThief = view.role === "thief";
   const myTurnPawn = (pawn: string) => game.detectives.find((d) => d.id === pawn)?.controller === view.you;
-  const line = describe(e, ctx);
+
+  const headline = announceOf(e, ctx);
+  if (headline && e.type !== "rolled") announce(headline);
 
   switch (e.type) {
     case "phase":
@@ -305,9 +219,12 @@ function play(e: GameEvent, ctx: Ctx): number {
       setMusic("calm");
       return 1800;
     case "thiefTurn":
+      // A new round of turns: last turn's dice are done with.
+      useFx.setState({ dice: null, diceDocked: false });
       if (iAmThief) sfx.turnChime();
       return 0;
     case "detectiveTurn":
+      useFx.setState({ dice: null, diceDocked: false });
       if (myTurnPawn(e.pawn)) sfx.turnChime();
       return 0;
     case "thiefMoved":
@@ -322,48 +239,40 @@ function play(e: GameEvent, ctx: Ctx): number {
     case "paintingVanished":
       useFx.setState({ lifting: { painting: e.painting, cell: e.cell, until: performance.now() + 1100 * speed() } });
       sfx.steal();
-      toast(`Stolen from the ${cellLabel(board, e.cell)}!`, "bad", "🖼️");
       return 1100;
     case "paintingStolen":
       if (e.pending) {
         sfx.lift();
-        toast(`Marked "${ARTWORKS[e.painting].title}" (secret)`, "secret", "🔒");
         return 500;
       }
       useFx.setState({ lifting: { painting: e.painting, cell: e.cell, until: performance.now() + 1100 * speed() } });
       sfx.steal();
-      toast(`Stolen from the ${cellLabel(board, e.cell)}!`, "bad", "🖼️");
       return 1000;
     case "cameraDisabled":
       sfx.cameraClick();
-      toast(`Camera ${e.n} disabled (secret)`, "secret", "🔒");
       return 500;
     case "powerCut":
       sfx.powerDown();
-      toast("You cut the power (secret)", "secret", "🔒");
       return 900;
     case "lockTried":
       useFx.setState({ flipping: { slot: e.slot, until: performance.now() + 1000 * speed() } });
       sfx.lockClunk();
       if (e.face === "open") setTimeout(() => sfx.lockOpen(), 500 * speed());
-      else toast(`${slotLabel(board, e.slot)}: LOCKED`, iAmThief ? "bad" : "info", "🔒");
       flash({ kind: "ping", cells: [e.cell] }, 2000);
       return 1200;
     case "rolled":
-      useFx.setState({ dice: { id: nextId++, move: e.move, action: e.action, pawn: e.pawn, until: performance.now() + 1100 * speed() } });
+      // The dice tumble in the middle of the board, then dock with the headline and stay for the turn.
+      useFx.setState({ dice: { id: nextId++, move: e.move, action: e.action, pawn: e.pawn, until: performance.now() + 1100 * speed() }, diceDocked: false });
+      announce(headline!, 2400);
       sfx.dice();
       return 1100;
     case "boxedIn":
-      toast(line!.text, "info", "🧱");
       return 600;
     case "detectiveMoved":
       e.path.forEach((_, i) => setTimeout(() => sfx.step(i), i * 170 * speed()));
       return 150 + e.path.length * 170;
     case "powerRestored":
-      if (e.silent) {
-        toast(line!.text, "secret", "🔒");
-        return 600;
-      }
+      if (e.silent) return 600;
       sfx.powerUp();
       banner("LIGHTS ON", "mint");
       return 1100;
@@ -389,13 +298,11 @@ function play(e: GameEvent, ctx: Ctx): number {
         flash({ kind: "sightHit", cells, source: e.n }, 1500);
         if (!game.thief.revealed || iAmThief) useFx.setState({ hint: { cells, camera: e.n } });
         setTimeout(() => sfx.yes(), 300 * speed());
-        toast(`Camera ${e.n} sees the thief!`, "bad", "📹");
       } else if (e.result === "clear" && cam !== null) {
         flash({ kind: "sightMiss", cells: board.sight[cam], source: e.n }, 1000);
         setTimeout(() => sfx.no(), 300 * speed());
       } else if (e.result === "dead" && cam !== null) {
         flash({ kind: "spark", cells: [cam] }, 1200);
-        toast(`Camera ${e.n} was sabotaged!`, "bad", "💥");
       }
       return e.result === "powerOut" ? 400 : 1200;
     }
@@ -416,7 +323,6 @@ function play(e: GameEvent, ctx: Ctx): number {
         useFx.setState({ hint: { cells, camera: e.seeing[0] } });
         setTimeout(() => sfx.yes(), all.length * 220 * speed());
       }
-      toast(line!.text, e.seeing.length ? "bad" : "info", "📡");
       return 400 + all.length * 220;
     }
     case "powerOutDiscovered":
@@ -429,13 +335,11 @@ function play(e: GameEvent, ctx: Ctx): number {
     case "motion":
       if (e.result === "answered") {
         flash({ kind: "colour", cells: board.walkable.filter((c) => (board.region[c] ? board.colours[board.region[c]!] : "grey") === e.colour), colour: e.colour }, 2200);
-        toast(`Motion detectors: ${COLOUR_WORD(e.colour!)}`, "bad", "📶");
         sfx.yes();
         return 1400;
       }
       if (e.result === "snipped") {
         sfx.snip();
-        toast(`✂ Motion detectors snipped (${e.snipsLeft} left)`, "info");
         return 900;
       }
       return 300;
@@ -458,7 +362,7 @@ function play(e: GameEvent, ctx: Ctx): number {
       banner("DAWN BREAKS", iAmThief ? "alarm" : "mint", "The museum opens: the thief is trapped inside.");
       return 2200;
     case "roundOver":
-      useFx.setState({ showResult: true });
+      useFx.setState({ showResult: true, dice: null, diceDocked: false });
       return 0;
     case "locksPlaced":
     case "locksShuffled":

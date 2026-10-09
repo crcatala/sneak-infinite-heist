@@ -79,7 +79,7 @@ export function TurnBar({ view, game }: { view: RoomView; game: GameView }) {
         {game.thief.revealed && game.phase === "play" && <span className="chip alarm pulse">CHASE</span>}
       </div>
 
-      <div className={`turnbar-main${turn.mine ? " mine" : ""}`} style={{ ["--c" as string]: turn.colour }} aria-live="polite">
+      <div data-hud="band" className={`turnbar-main${turn.mine ? " mine" : ""}`} style={{ ["--c" as string]: turn.colour }} aria-live="polite">
         <span className="turn-dot" />
         <div>
           <div className="turn-text">{turn.text}</div>

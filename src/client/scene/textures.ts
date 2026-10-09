@@ -195,6 +195,62 @@ export function discTexture(label: string, fg = "#1b1834", bg = "#ffffff"): THRE
   return finish(key, c);
 }
 
+/** The power switch's floor plate: hazard-striped border around a bolt (mint when the power is on, alarm red when cut). */
+export function powerPlateTexture(on: boolean): THREE.Texture {
+  const key = `powerPlate:${on}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const S = 256;
+  const [c, ctx] = canvas(S, S);
+  ctx.fillStyle = "#22203a";
+  ctx.fillRect(0, 0, S, S);
+  // Hazard stripes around the edge.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, S, S);
+  ctx.rect(26, 26, S - 52, S - 52);
+  ctx.clip("evenodd");
+  ctx.fillStyle = "#ffc14d";
+  ctx.fillRect(0, 0, S, S);
+  ctx.fillStyle = "#1b1834";
+  for (let i = -S; i < S * 2; i += 40) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i + 20, 0);
+    ctx.lineTo(i + 20 + S, S);
+    ctx.lineTo(i + S, S);
+    ctx.fill();
+  }
+  ctx.restore();
+  // Inner panel with the bolt.
+  const tint = on ? "#4fe0b0" : "#ff4d6d";
+  ctx.fillStyle = on ? "#123a34" : "#3d1224";
+  ctx.fillRect(26, 26, S - 52, S - 52);
+  ctx.fillStyle = tint;
+  ctx.strokeStyle = tint;
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(146, 52);
+  ctx.lineTo(88, 138);
+  ctx.lineTo(126, 138);
+  ctx.lineTo(110, 204);
+  ctx.lineTo(170, 114);
+  ctx.lineTo(130, 114);
+  ctx.closePath();
+  if (on) ctx.fill();
+  else {
+    ctx.stroke();
+    ctx.lineWidth = 10;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(60, 60);
+    ctx.lineTo(196, 196);
+    ctx.stroke();
+  }
+  return finish(key, c);
+}
+
 // --- dice --------------------------------------------------------------------------------------
 
 function dieCanvas(bg: string): [HTMLCanvasElement, CanvasRenderingContext2D] {

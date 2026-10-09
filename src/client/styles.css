@@ -28,6 +28,7 @@
   --d-micro: 120ms;
   --d-ui: 220ms;
   --d-page: 420ms;
+  --d-cine: 900ms;
 
   --ui-scale: 1;
   --t-hero: clamp(2.6rem, 9vw, 5.5rem);

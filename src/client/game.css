@@ -107,12 +107,15 @@
   bottom: max(12px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   width: min(760px, calc(100vw - 24px));
-  padding: 14px 16px;
+  padding: 10px 12px;
   z-index: 12;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   animation: panel-up var(--d-ui) var(--e-sneak);
+}
+.action-panel.wide {
+  width: min(940px, calc(100vw - 24px));
 }
 @keyframes panel-up {
   from {
@@ -286,39 +289,65 @@
   flex: none;
 }
 
-.det-cards {
+.det-row {
   display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 10px;
+  grid-template-columns: minmax(220px, 0.85fr) 1.75fr;
+  gap: 8px;
 }
-.det-card {
+.det-seg {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 4px;
+  min-width: 0;
+  padding: 7px 10px 6px;
   border-radius: 14px;
   background: var(--night-700);
   border: 2px solid var(--night-600);
-  border-top: 5px solid var(--lamp-400);
+  border-top: 4px solid var(--lamp-400);
 }
-.det-card.done {
+.det-seg.done {
   opacity: 0.55;
   border-top-color: var(--mint-400);
 }
-.det-card p {
-  margin: 0;
-}
-.det-card-head {
+.seg-line {
+  min-height: 46px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   font-family: var(--f-head);
 }
+.seg-line .spacer {
+  flex: 1;
+}
+.seg-cap {
+  margin: 0;
+  min-height: 2.6em;
+  font-size: calc(0.78rem * var(--ui-scale));
+  line-height: 1.3;
+  color: var(--moon-200);
+}
+.seg-cap b {
+  color: var(--moon-50);
+}
+.grp {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.grp-label {
+  font-size: calc(0.62rem * var(--ui-scale));
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--moon-400);
+}
 .die-badge {
+  flex: none;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.4);
 }
@@ -331,10 +360,56 @@
   background: #f4f1e8;
   color: #1b1834;
 }
-.cam-btn {
-  font-family: var(--f-logo);
+.cam-row {
+  display: flex;
+  gap: 4px;
 }
-
+/* Mirrors the red camera units on the board, with their white number disc. */
+.cam-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 38px;
+  padding: 0;
+  border-radius: 11px;
+  border: 2px solid #ff7c84;
+  background: #d8323c;
+  box-shadow: 0 4px 0 #8a1c25;
+  cursor: pointer;
+  transition:
+    transform var(--d-micro) var(--e-sneak),
+    box-shadow var(--d-micro) var(--e-sneak);
+}
+.cam-btn i {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  color: #1b1834;
+  font-style: normal;
+  font-family: var(--f-head);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.cam-btn:hover:not(:disabled),
+.cam-btn.active {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 #8a1c25;
+  border-color: var(--lamp-300);
+}
+.cam-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #8a1c25;
+}
+.cam-btn:disabled {
+  background: var(--night-500);
+  border-color: var(--night-500);
+  box-shadow: 0 4px 0 var(--night-600);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 /* --- thief pad -------------------------------------------------------------------------------- */
 
 .thief-pad {
@@ -460,66 +535,328 @@
   gap: 4px;
 }
 
-/* --- log ---------------------------------------------------------------------------------------- */
+/* --- case notes ----------------------------------------------------------------------------------- */
 
 .log-panel {
   position: absolute;
   right: 10px;
-  top: 76px;
-  bottom: 170px;
-  width: min(340px, 40vw);
+  top: calc(var(--dock-top) + var(--dock-h) + 8px);
+  bottom: 140px;
+  width: min(360px, 42vw);
   z-index: 11;
   display: flex;
   flex-direction: column;
+  gap: 6px;
+  padding: 12px 10px 10px 12px;
+}
+.log-head {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--night-600);
+  font-family: var(--f-head);
+  font-size: calc(1.1rem * var(--ui-scale));
+}
+.log-head-icon {
+  color: var(--lamp-400);
 }
 .log-lines {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
   font-size: var(--t-small);
+  padding-right: 4px;
 }
+.log-empty {
+  margin: 12px 4px;
+  color: var(--moon-200);
+}
+
+/* Each kind of event has its own badge colour: restyle one line to retint them all. */
 .log-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: baseline;
-  padding: 4px 6px;
-  border-radius: 8px;
-  line-height: 1.3;
+  --k: var(--moon-400);
 }
-.log-line.secret {
-  background: rgba(255, 193, 77, 0.1);
-  border-left: 3px solid var(--lamp-400);
+.log-line[data-kind="setup"] {
+  --k: var(--moon-400);
 }
-.log-line.tone-alarm {
-  color: var(--alarm-400);
+.log-line[data-kind="start"] {
+  --k: var(--lamp-400);
 }
-.log-line.tone-bad {
-  color: #ffb3bf;
+.log-line[data-kind="sneak"] {
+  --k: var(--lamp-300);
 }
-.log-line.tone-good {
-  color: var(--mint-400);
+.log-line[data-kind="steal"] {
+  --k: #ffa24d;
 }
+.log-line[data-kind="sabotage"] {
+  --k: #ff9f6b;
+}
+.log-line[data-kind="power"] {
+  --k: #ffe27a;
+}
+.log-line[data-kind="lock"] {
+  --k: #d5dcef;
+}
+.log-line[data-kind="roll"] {
+  --k: #f4f1e8;
+}
+.log-line[data-kind="move"] {
+  --k: var(--moon-400);
+}
+.log-line[data-kind="eye"] {
+  --k: #6fe3ff;
+}
+.log-line[data-kind="camera"] {
+  --k: #ff7c84;
+}
+.log-line[data-kind="scan"] {
+  --k: #5ad1c0;
+}
+.log-line[data-kind="motion"] {
+  --k: #b58cff;
+}
+.log-line[data-kind="spotted"] {
+  --k: var(--alarm-500);
+}
+.log-line[data-kind="capture"] {
+  --k: var(--mint-400);
+}
+.log-line[data-kind="escape"] {
+  --k: var(--lamp-300);
+}
+.log-line[data-kind="dawn"] {
+  --k: #ffb68a;
+}
+.log-line[data-kind="idle"] {
+  --k: var(--moon-200);
+}
+
+/* Turn heading: a big number and a fading rule. */
 .log-turn {
-  flex-basis: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 14px 0 2px;
+  color: var(--moon-400);
+}
+.log-section:first-child .log-turn {
+  margin-top: 4px;
+}
+.log-turn span {
   font-size: var(--t-micro);
   font-weight: 800;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--moon-400);
-  margin-top: 6px;
 }
-.log-icon {
-  flex: none;
-  width: 1.4em;
-  text-align: center;
+.log-turn b {
+  font-family: var(--f-logo);
+  font-size: 1.15rem;
+  line-height: 1;
+  color: var(--moon-50);
 }
-.log-line > span:last-child {
+.log-turn::after {
+  content: "";
   flex: 1;
+  height: 2px;
+  align-self: center;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--night-500), transparent);
+}
+
+/* Who's acting: a name tag, then their lines indented on a rail in their colour. */
+.log-actor {
+  --c: var(--lamp-400);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 2px 2px;
+  font-family: var(--f-head);
+  font-weight: 700;
+  color: color-mix(in srgb, var(--c) 70%, white);
+}
+.log-actor.is-thief {
+  --c: var(--lamp-400);
+}
+.p-dot {
+  display: inline-block;
+  flex: none;
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow:
+    inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+    0 0 6px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.log-group {
+  --c: var(--lamp-400);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 6px;
+  padding-left: 8px;
+  border-left: 3px solid color-mix(in srgb, var(--c) 55%, transparent);
+  border-radius: 2px;
+}
+.log-group.is-setup {
+  --c: var(--moon-400);
+  margin-left: 2px;
+  border-left-color: color-mix(in srgb, var(--moon-400) 30%, transparent);
+}
+
+.log-line {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  padding: 5px 6px;
+  border-radius: 10px;
+  line-height: 1.35;
+}
+.log-line.tone-alarm {
+  background: rgba(255, 77, 109, 0.12);
+}
+.log-line.tone-bad {
+  background: rgba(255, 77, 109, 0.07);
+}
+.log-line.tone-good {
+  background: rgba(79, 224, 176, 0.08);
+}
+.log-line.secret {
+  background: repeating-linear-gradient(135deg, rgba(255, 193, 77, 0.12) 0 8px, rgba(255, 193, 77, 0.06) 8px 16px);
+  box-shadow: inset 3px 0 0 var(--lamp-400);
+}
+.log-line.latest {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--k) 45%, transparent);
+}
+.log-line.secret.latest {
+  box-shadow:
+    inset 3px 0 0 var(--lamp-400),
+    inset 0 0 0 2px color-mix(in srgb, var(--k) 45%, transparent);
+}
+.log-line.fresh {
+  animation: log-in 0.5s var(--e-pop);
+}
+@keyframes log-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+.log-ico {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  color: var(--k);
+  background: color-mix(in srgb, var(--k) 16%, var(--night-700));
+  border: 1.5px solid color-mix(in srgb, var(--k) 45%, transparent);
+}
+.log-lock {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  padding: 1px;
+  border-radius: 50%;
+  color: var(--night-950);
+  background: var(--lamp-400);
+}
+.log-text {
   min-width: 0;
+  padding-top: 2px;
+  overflow-wrap: anywhere;
+}
+.log-time {
+  padding-top: 4px;
+  font-size: var(--t-micro);
+  font-weight: 700;
+  color: var(--moon-400);
+  opacity: 0.85;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The nouns worth a glance. */
+.p-det,
+.p-thief,
+.p-place,
+.p-num,
+.p-act,
+.p-res {
+  font-weight: 800;
+}
+.p-det {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: color-mix(in srgb, var(--c) 75%, white);
+}
+.p-thief {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--lamp-300);
+}
+.p-thief svg {
+  flex: none;
+}
+.p-place {
+  --f: #7d8194;
+  padding: 0 4px;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--f) 45%, white);
+  background: color-mix(in srgb, var(--f) 26%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--f) 50%, transparent);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.p-place[data-floor="red"] {
+  --f: #b8323c;
+}
+.p-place[data-floor="purple"] {
+  --f: #6e3fa8;
+}
+.p-place[data-floor="blue"] {
+  --f: #2f5fb8;
+}
+.p-place[data-floor="yellow"] {
+  --f: #c88a22;
+}
+.p-place[data-floor="green"] {
+  --f: #2e8f5a;
+}
+.p-place[data-floor="white"] {
+  --f: #e6e2d8;
+}
+.p-num {
+  color: var(--lamp-300);
+  font-variant-numeric: tabular-nums;
+}
+.p-art {
+  color: #ffd9a0;
+  font-weight: 700;
+}
+.p-act {
+  padding: 0 6px;
+  border-radius: 6px;
+  color: #1b1834;
+  background: #f4f1e8;
+}
+.p-res.tone-alarm {
+  color: var(--alarm-400);
+}
+.p-res.tone-bad {
+  color: #ff9aa8;
+}
+.p-res.tone-good {
+  color: var(--mint-400);
+}
+.p-res.tone-info {
+  color: var(--moon-50);
+  box-shadow: 0 2px 0 -0.5px var(--moon-400);
 }
 
 /* --- banners, dice, modals -------------------------------------------------------------------- */
@@ -579,17 +916,186 @@
   }
 }
 
+/* The dice tumble in the middle of the board, then glide into the dock and stay for the turn. */
+/* The dock hangs in the top-right corner (plaza, not board). On phones it spans the width under the turn bar. */
+.game-screen {
+  --dock-top: 60px;
+  --dock-w: 360px;
+  --dock-h: 68px;
+  --dock-left: calc(100% - var(--dock-w) - 10px);
+  --hero-w: min(580px, calc(100vw - 24px));
+}
 .dice-tray {
   position: absolute;
-  left: 50%;
-  bottom: 190px;
-  transform: translateX(-50%);
+  left: calc(50% - 150px);
+  top: calc(44% - 90px);
   width: 300px;
   height: 180px;
-  z-index: 20;
+  z-index: 21;
   border-radius: 24px;
-  background: radial-gradient(ellipse at center, rgba(255, 193, 77, 0.15), transparent 70%);
-  cursor: pointer;
+  background: radial-gradient(ellipse at center, rgba(255, 193, 77, 0.18), transparent 70%);
+  border: 0 solid transparent;
+  pointer-events: none;
+  animation: fade-in var(--d-ui);
+  /* Resize rather than scale: the canvas measures its own box and a CSS scale would shrink it twice. */
+  transition:
+    left var(--d-cine) var(--e-sneak),
+    top var(--d-cine) var(--e-sneak),
+    width var(--d-cine) var(--e-sneak),
+    height var(--d-cine) var(--e-sneak),
+    opacity var(--d-page);
+}
+.dice-tray.docked {
+  left: calc(var(--dock-left) + 5px);
+  top: calc(var(--dock-top) + 5px);
+  width: 98px;
+  height: 58px;
+  /* A tile of its own, so the parked dice still read as a unit while a headline is large. */
+  background: color-mix(in srgb, var(--night-700) 95%, transparent);
+  border: 3px solid color-mix(in srgb, var(--moon-400) 35%, var(--night-600));
+  border-radius: 14px;
+  z-index: 16;
+}
+.dice-tray.leaving {
+  opacity: 0;
+}
+
+/* --- announcements: the last big move ---------------------------------------------------------- */
+
+/* The slot is always there (fixed size, fixed place), so nothing around it ever shifts. The card
+   lives in the slot; for its big moment it is transformed to the middle of the screen and back. */
+.announce-slot {
+  position: absolute;
+  left: var(--dock-left);
+  top: var(--dock-top);
+  width: var(--dock-w);
+  height: var(--dock-h);
+  z-index: 14;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  border: 2px dashed color-mix(in srgb, var(--moon-400) 28%, transparent);
+  background: color-mix(in srgb, var(--night-800) 35%, transparent);
+  color: color-mix(in srgb, var(--moon-400) 70%, transparent);
+  font-size: var(--t-micro);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.announce {
+  --tone: var(--moon-400);
+  position: absolute;
+  left: var(--dock-left);
+  top: var(--dock-top);
+  width: var(--dock-w);
+  height: var(--dock-h);
+  display: flex;
+  align-items: center;
+  z-index: 15;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--night-800) 92%, transparent);
+  border: 2px solid color-mix(in srgb, var(--tone) 70%, var(--night-600));
+  box-shadow:
+    0 6px 0 -1px rgba(0, 0, 0, 0.4),
+    0 10px 30px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+  transform-origin: 0 0;
+  /* Transform only: it glides on the GPU without re-laying-out the text. */
+  transition:
+    transform var(--d-cine) var(--e-sneak),
+    padding var(--d-cine) var(--e-sneak),
+    border-color var(--d-page),
+    box-shadow var(--d-cine) var(--e-sneak);
+}
+.announce.tone-good {
+  --tone: var(--mint-400);
+}
+.announce.tone-bad,
+.announce.tone-alarm {
+  --tone: var(--alarm-500);
+}
+.announce.tone-secret {
+  --tone: var(--lamp-400);
+}
+.announce.has-dice.stage-docked {
+  padding-left: 116px;
+}
+.announce-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  animation: ann-pop 0.5s var(--e-pop);
+}
+@keyframes ann-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+.announce-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--night-950);
+  background: var(--who, var(--tone));
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, 0.25),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+}
+.announce-icon svg {
+  width: 60%;
+  height: 60%;
+}
+.announce-text {
+  min-width: 0;
+}
+.announce-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--f-head);
+  font-weight: 700;
+  font-size: calc(0.98rem * var(--ui-scale));
+  line-height: 1.15;
+  transition: color var(--d-cine);
+}
+.announce-sub {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--moon-200);
+  font-size: calc(0.78rem * var(--ui-scale));
+  line-height: 1.25;
+}
+
+/* Big and central for the first few seconds: the same card, moved and scaled (Announcer sets the vars). */
+.announce.stage-hero {
+  transform: translate(var(--hero-x, 0), var(--hero-y, 0)) scale(var(--hero-k, 1));
+  padding-left: 12px;
+  z-index: 22;
+  box-shadow:
+    0 8px 0 -1px rgba(0, 0, 0, 0.45),
+    0 0 0 5px color-mix(in srgb, var(--tone) 22%, transparent),
+    0 0 40px color-mix(in srgb, var(--tone) 35%, transparent),
+    0 14px 30px rgba(0, 0, 0, 0.5);
+}
+.announce.tone-alarm.stage-hero .announce-title {
+  color: var(--alarm-400);
+}
+.announce.tone-good.stage-hero .announce-title {
+  color: var(--mint-400);
+}
+.announce.tone-secret.stage-hero .announce-title {
+  color: var(--lamp-300);
 }
 
 .modal-backdrop {
@@ -885,8 +1391,11 @@
     max-height: 46vh;
     overflow: auto;
   }
-  .det-cards {
+  .det-row {
     grid-template-columns: 1fr;
+  }
+  .seg-cap {
+    min-height: 0;
   }
   .thief-pad {
     top: auto;
@@ -897,24 +1406,34 @@
     left: 6px;
     right: 6px;
     width: auto;
-    top: 120px;
+    top: calc(var(--dock-top) + var(--dock-h) + 8px);
     bottom: 40%;
   }
+  .game-screen {
+    --dock-top: 112px;
+    --dock-w: calc(100vw - 12px);
+    --dock-left: 6px;
+  }
+  .announce.stage-hero {
+    top: 24vh;
+  }
+  .announce.stage-hero .announce-title {
+    font-size: calc(1.45rem * var(--ui-scale));
+  }
   .dice-tray {
-    bottom: 45%;
-    width: 240px;
-    height: 150px;
+    left: calc(50% - 150px);
+    top: calc(40% - 90px);
   }
   .round-stats {
     grid-template-columns: repeat(3, 1fr);
   }
   .emote-bar {
     bottom: auto;
-    top: 118px;
+    top: 206px;
   }
   .emote-float {
     bottom: auto;
-    top: 160px;
+    top: 250px;
   }
 }
 
@@ -944,7 +1463,7 @@
     right: auto;
     left: 8px;
   }
-  .det-cards {
+  .det-row {
     grid-template-columns: 1fr;
   }
 }

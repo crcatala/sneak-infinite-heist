@@ -151,7 +151,8 @@ export type GameEventBody =
   | { type: "dawn"; turns: number }
   | { type: "roundOver"; result: RoundResult };
 
-export type GameEvent = GameEventBody & { seq: number; vis: Visibility };
+/** `at` is the wall-clock time (epoch ms) the event was emitted, for "2m ago" stamps in the case notes. */
+export type GameEvent = GameEventBody & { seq: number; vis: Visibility; at: number };
 
 export interface GameState {
   v: 1;

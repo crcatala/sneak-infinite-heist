@@ -53,7 +53,7 @@ export function apply(prev: GameState, actor: string, action: GameAction): Apply
 }
 
 function emit(state: GameState, vis: Visibility, body: GameEventBody) {
-  state.events.push({ ...body, seq: ++state.seq, vis } as GameEvent);
+  state.events.push({ ...body, seq: ++state.seq, vis, at: Date.now() } as GameEvent);
 }
 
 function fail(message: string): never {

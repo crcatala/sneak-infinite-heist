@@ -133,6 +133,8 @@ Everything looks like a chunky plastic game piece: rounded, with a lit top edge 
 - **Icons:** drawn in code as SVG on a 24px grid with a 2px stroke, round caps and joins, `currentColor`.
   - The set: eye, scan-camera ("S"), motion ("M"), lock and open-lock, scissors, bolt (power), frame,
     footprints, magnifier, flashlight, crown, bot, wifi-off, gear, volume, question and exit.
+  - The case-notes set, one glyph per kind of event (each badge is tinted from CSS by its `data-kind`): moon,
+    sunrise, siren, handcuffs, escape, burst, bolt-off, bulb, block, zzz, shuffle and steal.
 
 ## 4. Motion: "sneak and pop"
 

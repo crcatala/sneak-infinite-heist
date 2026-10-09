@@ -4,6 +4,7 @@
 import { useEffect, useRef } from "react";
 import { cellOf, getBoard, xyOf } from "../../shared/board/model";
 import { ActionPanel } from "../hud/ActionPanel";
+import { Announcer } from "../hud/Announcer";
 import { DiceTray } from "../hud/DiceTray";
 import { BannerLayer, EmoteBar, LogPanel, MotionPrompt } from "../hud/Panels";
 import { PauseMenu, RoundOver } from "../hud/RoundOver";
@@ -11,6 +12,7 @@ import { ThiefPad } from "../hud/ThiefPad";
 import { TurnBar } from "../hud/TurnBar";
 import { activePawn } from "../game/derive";
 import { useBoardInteraction } from "../game/interact";
+import { defersToFocusedControl, primaryIntent } from "../game/keys";
 import { ingest, resetPlayer, setFastForward, skipFx, useFx } from "../game/present";
 import { useGameUi } from "../game/uiStore";
 import { GameScene } from "../scene/GameScene";
@@ -54,6 +56,7 @@ export function Game() {
   }, [ix]);
 
   useKeys();
+  useHudWatch();
 
   return (
     <div className={`screen game-screen role-${view.role ?? "spectator"}${game.power.cut ? " dark" : ""}`}>
@@ -63,6 +66,7 @@ export function Game() {
       <LogPanel view={view} game={game} />
       {!showResult && <ActionPanel view={view} game={game} ix={ix} />}
       <DiceTray />
+      <Announcer active={game.phase === "play" || game.phase === "roundOver"} />
       <BannerLayer />
       <MotionPrompt view={view} game={game} />
       {game.phase === "roundOver" && showResult && <RoundOver view={view} game={game} />}
@@ -72,6 +76,32 @@ export function Game() {
       {view.viewAs && <div className="peek-badge">Peeking as {view.viewAs} (debug)</div>}
     </div>
   );
+}
+
+/**
+ * Tells the camera when the HUD has moved. It polls the tagged panels' positions and only reports a
+ * layout that has held still for two ticks, so panels mid-glide don't make the board chase them.
+ */
+function useHudWatch() {
+  useEffect(() => {
+    let previous = "";
+    let applied = "";
+    const id = setInterval(() => {
+      const sig =
+        [...document.querySelectorAll<HTMLElement>("[data-hud]")]
+          .map((el) => {
+            const r = el.getBoundingClientRect();
+            return `${el.dataset.hud}:${[r.left, r.top, r.right, r.bottom].map((n) => Math.round(n / 8)).join(",")}`;
+          })
+          .join("|") + `|${innerWidth}x${innerHeight}`;
+      if (sig === previous && sig !== applied) {
+        applied = sig;
+        useGameUi.setState((s) => ({ hudNonce: s.hudNonce + 1 }));
+      }
+      previous = sig;
+    }, 200);
+    return () => clearInterval(id);
+  }, []);
 }
 
 function useKeys() {
@@ -99,6 +129,7 @@ function useKeys() {
       if (k === "Escape") {
         e.preventDefault();
         if (fx.banner) return skipFx();
+        if (ui.eyeTarget !== null) return ui.set({ eyeTarget: null, eyePreview: null });
         if (ui.held) return ui.set({ held: null });
         if (ui.moveDest !== null) return ui.set({ moveDest: null });
         if (ui.plan.dest !== null) return ui.set({ plan: { ...ui.plan, dest: null, path: null } });
@@ -128,31 +159,56 @@ function useKeys() {
 
       const t = game.turn;
       const myDet = t.kind === "detective" && activePawn(game)?.controller === view.you && !t.awaitingThief;
-      if (k === "Enter" || k === " ") {
-        // Primary action for the moment.
-        if (k === "Enter" && ui.cursor !== null && !(view.role === "thief" && ui.plan.dest === ui.cursor) && ui.moveDest !== ui.cursor) {
-          e.preventDefault();
-          (window as unknown as { __boardClick?: (c: number) => void }).__boardClick?.(ui.cursor);
-          return;
-        }
-        if (myDet && !t.roll) {
-          e.preventDefault();
-          return send({ t: "game", action: { a: "roll" } });
-        }
-        if (myDet && ui.moveDest !== null) {
-          e.preventDefault();
-          send({ t: "game", action: { a: "move", dest: ui.moveDest } });
-          return ui.set({ moveDest: null });
-        }
-        if (game.phase.startsWith("setup") && view.role === "detective" && k === "Enter") {
-          e.preventDefault();
-          return send({ t: "game", action: { a: "setupReady", ready: !game.ready[view.you] } });
-        }
-        return;
+
+      // A button the player tabbed to gets its own Enter / Space (Cancel must cancel).
+      let focusVisible = false;
+      try {
+        focusVisible = el.matches(":focus-visible");
+      } catch {
+        // Very old browsers: treat focus as pointer-driven and keep the shortcuts.
       }
+      if (defersToFocusedControl(k, { tag: el.tagName, role: el.getAttribute("role"), focusVisible })) return;
+
+      const intent = primaryIntent(k, {
+        role: view.role ?? null,
+        setup: game.phase.startsWith("setup"),
+        myDet,
+        rolled: t.kind === "detective" && !!t.roll,
+        eyeRoll: t.kind === "detective" && t.roll?.action === "eye",
+        acted: t.kind === "detective" && t.acted,
+        eyeTarget: ui.eyeTarget,
+        cursor: ui.cursor,
+        moveDest: ui.moveDest,
+        thiefPlanDest: ui.plan.dest,
+        iAmReady: !!game.ready[view.you],
+      });
+      if (intent) {
+        e.preventDefault();
+        switch (intent.kind) {
+          case "eye":
+            send({ t: "game", action: { a: "eye", target: intent.target } });
+            return ui.set({ eyeTarget: null, eyePreview: null });
+          case "boardClick":
+            (window as unknown as { __boardClick?: (c: number) => void }).__boardClick?.(intent.cell);
+            return;
+          case "roll":
+            return send({ t: "game", action: { a: "roll" } });
+          case "move":
+            send({ t: "game", action: { a: "move", dest: intent.dest } });
+            return ui.set({ moveDest: null });
+          case "ready":
+            return send({ t: "game", action: { a: "setupReady", ready: intent.ready } });
+        }
+      }
+      if (k === "Enter" || k === " ") return;
       if (myDet && t.roll && !t.acted) {
-        if ((k === "e" || k === "E") && t.roll.action === "eye") return send({ t: "game", action: { a: "eye", target: "self" } });
-        if (e.shiftKey && /^Digit[1-6]$/.test(e.code) && t.roll.action === "eye") return send({ t: "game", action: { a: "eye", target: Number(e.code.slice(5)) } });
+        // Eye is a two-step: these pick the target, and Enter (or the Confirm button) asks it.
+        if ((k === "e" || k === "E") && t.roll.action === "eye") return ui.set({ eyeTarget: "self", eyePreview: "self" });
+        if (e.shiftKey && /^Digit[1-6]$/.test(e.code) && t.roll.action === "eye") {
+          const n = Number(e.code.slice(5));
+          if (game.power.cut || !game.cameras.some((c) => c.n === n)) return;
+          return ui.set({ eyeTarget: n, eyePreview: n });
+        }
         if ((k === "s" || k === "S") && t.roll.action === "scan") return send({ t: "game", action: { a: "scan" } });
         if ((k === "m" || k === "M") && t.roll.action === "motion") return send({ t: "game", action: { a: "motion" } });
         if (k === "x" || k === "X") return send({ t: "game", action: { a: "skipAction" } });
