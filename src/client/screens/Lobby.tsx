@@ -369,7 +369,7 @@ function RulesPanel({ isHost }: { isHost: boolean }) {
         <Rule name="Bot skill" help="Rookie bots fumble about a third of their decisions. Pro bots deduce everything the rules allow.">
           <Seg value={s.botSkill} options={[["rookie", "Rookie"], ["pro", "Pro"]]} onPick={(botSkill) => set({ t: "settings", patch: { botSkill } })} />
         </Rule>
-        <Rule name="Detective aids" help="Team suspect marks (right-click / long-press a space), or marks plus an automatic 'where could the thief be?' overlay.">
+        <Rule name="Detective aids" help="Team suspect marks (Shift + right-click a space), or marks plus an automatic 'where could the thief be?' overlay.">
           <Seg value={r.assist} options={[["off", "Off"], ["marks", "Marks"], ["overlay", "Marks + overlay"]]} onPick={(assist) => set({ t: "settings", patch: { rules: { assist } } })} />
         </Rule>
         <Rule name="Museum opens at dawn" help="The detectives win if the thief is still inside after this many thief turns.">

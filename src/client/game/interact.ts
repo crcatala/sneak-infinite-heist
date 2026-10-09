@@ -79,6 +79,14 @@ function occ(game: GameView): Occupancy {
   };
 }
 
+/** Where a secondary press landed: board-grid units (cell centres are whole numbers), plus the modifier. */
+export interface PressAt {
+  x: number;
+  y: number;
+  /** Shift held: toggle a suspect mark instead of dropping a pointer pin. */
+  mark: boolean;
+}
+
 export interface BoardInteraction {
   mode: Mode;
   tiles: Tile[];
@@ -92,7 +100,7 @@ export interface BoardInteraction {
   /** Explanation for the hovered cell, if it's not a legal target. */
   hoverReason: string | null;
   click: (cell: Cell) => void;
-  context: (cell: Cell) => void;
+  context: (cell: Cell, at: PressAt) => void;
 }
 
 export function useBoardInteraction(view: RoomView, game: GameView): BoardInteraction {
@@ -118,7 +126,7 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
     let path: BoardInteraction["path"] = null;
     let hoverReason: string | null = null;
     let click: (cell: Cell) => void = () => {};
-    let context: (cell: Cell) => void = () => {};
+    let context: BoardInteraction["context"] = () => {};
     const hover = ui.hover;
     const o = occ(game);
     const refuse = (reason: string) => {
@@ -147,7 +155,15 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
       act({ a: "mark", cell, on: !game.marks.includes(cell) });
       sfx.markPencil();
     };
-    context = toggleMark;
+    // Secondary press (right-click / long-press): a pointer pin for the other detectives, dropped
+    // exactly where you pointed; Shift keeps the old persistent suspect mark on the cell.
+    const canPin = view.role === "detective" && game.phase !== "roundOver";
+    const dropPin = ({ x, y }: PressAt) => {
+      if (!canPin) return;
+      send({ t: "pin", x, y });
+      sfx.pinDrop();
+    };
+    context = (cell, at) => (at.mark ? toggleMark(cell) : dropPin(at));
 
     switch (mode.kind) {
       case "setupLocks": {
@@ -197,12 +213,11 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
           act({ a: "place", cell });
           sfx.place();
         };
-        context = (cell) => {
-          if (pieces.includes(cell)) {
-            act({ a: "remove", cell });
-            useGameUi.getState().set({ held: null });
-            sfx.lift();
-          }
+        context = (cell, at) => {
+          if (!pieces.includes(cell)) return dropPin(at);
+          act({ a: "remove", cell });
+          useGameUi.getState().set({ held: null });
+          sfx.lift();
         };
         break;
       }

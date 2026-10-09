@@ -6,6 +6,7 @@
 // a fixed range (never from hidden state); turn timers hand an expired turn to the bot logic.
 
 import { CLASSIC_BOARD } from "./board/classic";
+import { getBoard } from "./board/model";
 import { remixBoard } from "./board/remix";
 import { botAction } from "./bots";
 import { CHARACTERS, type DetectiveColour } from "./characters";
@@ -62,6 +63,8 @@ export const BOT_THINK_MS: [number, number] = [900, 1600];
 export const BOT_SETUP_MS: [number, number] = [250, 450];
 /** Minimum gap between two emotes from the same player. */
 export const EMOTE_COOLDOWN_MS = 1500;
+/** Minimum gap between two pointer pins from the same player (placing several in a row is fine). */
+export const PIN_COOLDOWN_MS = 200;
 
 const BOT_NAMES = ["Clank", "Widget", "Sprocket", "Gizmo", "Rivet", "Bolt"];
 
@@ -95,6 +98,7 @@ export class Room {
   /** Cheat views per player (not persisted: a refresh turns them off). */
   private viewAs = new Map<string, Viewer>();
   private lastEmote = new Map<string, number>();
+  private lastPin = new Map<string, number>();
 
   constructor(
     public state: RoomState,
@@ -445,6 +449,20 @@ export class Room {
         // Emotes are public table talk (like across a real table); both teams see them.
         const out: ServerMessage = { t: "emote", by: playerId, emote: msg.emote };
         result.outbound.push({ to: "others", msg: out }, { to: "self", msg: out });
+        return;
+      }
+
+      case "pin": {
+        const g = this.state.game;
+        if (!g || g.phase === "roundOver" || !isDetective(g, playerId)) throw new RoomError("Only detectives can point things out to each other.");
+        const board = getBoard(g.board);
+        if (!(msg.x >= -0.5 && msg.y >= -0.5 && msg.x <= board.width - 0.5 && msg.y <= board.height - 0.5)) return;
+        const now = this.deps.now();
+        if (now - (this.lastPin.get(playerId) ?? -Infinity) < PIN_COOLDOWN_MS) return;
+        this.lastPin.set(playerId, now);
+        // Pins are team talk: the thief must never see where the detectives are pointing.
+        const out: ServerMessage = { t: "pin", by: playerId, x: msg.x, y: msg.y };
+        result.outbound.push({ to: "team", msg: out }, { to: "self", msg: out });
         return;
       }
 

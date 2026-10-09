@@ -306,6 +306,10 @@ const synth = {
   emote() {
     pluck(N(12), 0, 0.1, 0.2);
   },
+  pinDrop() {
+    tone(N(19), 0, 0.14, 0.08, "sine", sfxBus, N(12));
+    noise(0.1, 0.03, 2400, 1400, 0.05, 1, "bandpass");
+  },
   turnChime() {
     pluck(N(7), 0, 0.14);
     pluck(N(12), 0.1, 0.14);
@@ -403,6 +407,10 @@ export const sfx = {
   },
   emote() {
     sample("emote-pop") || synth.emote();
+  },
+  /** A teammate's pin landing. */
+  pinDrop() {
+    synth.pinDrop();
   },
   turnChime() {
     sample("turn-chime") || synth.turnChime();

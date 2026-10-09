@@ -140,6 +140,10 @@ function open() {
         store.showEmote(msg.by, msg.emote);
         sfx.emote();
         break;
+      case "pin":
+        store.showPin(msg.by, msg.x, msg.y);
+        if (msg.by !== store.view?.you) sfx.pinDrop();
+        break;
       case "error":
         if (!welcomed) {
           // Refused join: stop here rather than waiting for (or retrying after) the close.
@@ -172,5 +176,5 @@ function open() {
 export function sendRaw(msg: ClientMessage) {
   const text = JSON.stringify(msg);
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(text);
-  else if (msg.t !== "emote") queue.push(text);
+  else if (msg.t !== "emote" && msg.t !== "pin") queue.push(text);
 }

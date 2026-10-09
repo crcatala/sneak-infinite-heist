@@ -8,16 +8,17 @@ import { getBoard, type Cell } from "../../shared/board/model";
 import type { GameView } from "../../shared/game/views";
 import type { RoomView } from "../../shared/protocol";
 import { activePawn } from "../game/derive";
-import type { BoardInteraction } from "../game/interact";
+import type { BoardInteraction, PressAt } from "../game/interact";
 import { useFx } from "../game/present";
 import { useGameUi } from "../game/uiStore";
 import { usePrefs } from "../prefs";
 import { Mover, PopIn } from "./Actors";
 import { CameraRig } from "./CameraRig";
-import { cellAtWorld, cellPos, FLOOR_Y } from "./layout";
+import { cellAtWorld, cellPos, FLOOR_Y, worldToGrid } from "./layout";
 import { Floors, Plaza, Plinths, Walls } from "./Museum";
 import { Marker, NumberBadge, PathDots, SpotColumn, TileLayer } from "./Overlays";
 import { CameraPiece, Padlock, PaintingPiece, Pawn, PowerSwitch, ThiefPawn } from "./pieces";
+import { Pins } from "./Pins";
 import { NightLights, SceneCanvas, type LightMood } from "./SceneCanvas";
 import { discTexture, glowTexture } from "./textures";
 
@@ -213,6 +214,8 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
       {ui.cursor !== null && <CursorRing position={cellPos(board, ui.cursor)} />}
       {game.result?.reason === "captured" && game.result.cell !== undefined && ui.replayTurn === null && <Handcuffs position={cellPos(board, game.result.cell)} />}
 
+      <Pins board={board} game={game} />
+
       <Picker board={board} ix={ix} />
     </>
   );
@@ -225,6 +228,11 @@ function Picker({ board, ix }: { board: ReturnType<typeof getBoard>; ix: BoardIn
   const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const cellOfEvent = (e: ThreeEvent<PointerEvent | MouseEvent>) => cellAtWorld(board, e.point.x, e.point.z);
+  /** The exact spot under the pointer, in board-grid units (pins aren't snapped to cell centres). */
+  const gridOfEvent = (e: ThreeEvent<PointerEvent | MouseEvent>, mark = false): PressAt => {
+    const [x, y] = worldToGrid(board, e.point.x, e.point.z);
+    return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, mark };
+  };
   const slotOf = (cell: Cell | null) => (cell === null ? null : (board.slots.find((s) => s.cell === cell)?.id ?? null));
 
   return (
@@ -244,9 +252,10 @@ function Picker({ board, ix }: { board: ReturnType<typeof getBoard>; ix: BoardIn
         const cell = cellOfEvent(e);
         if (e.nativeEvent.pointerType === "touch" && cell !== null) {
           clearTimeout(press.current);
+          const at = gridOfEvent(e);
           press.current = setTimeout(() => {
             down.current = null;
-            ix.context(cell);
+            ix.context(cell, at);
             navigator.vibrate?.(20);
           }, 550);
         }
@@ -264,7 +273,7 @@ function Picker({ board, ix }: { board: ReturnType<typeof getBoard>; ix: BoardIn
       onContextMenu={(e) => {
         e.nativeEvent.preventDefault();
         const cell = cellOfEvent(e);
-        if (cell !== null) ix.context(cell);
+        if (cell !== null) ix.context(cell, gridOfEvent(e, e.nativeEvent.shiftKey));
       }}
     >
       <planeGeometry args={[board.width + 2, board.height + 2]} />
