@@ -220,8 +220,10 @@ when something is revealed.
 
 ## 8. Audio feel
 
-- **The sound:** a "tiptoe pizzicato" palette of plucky sine and triangle notes, woodblock ticks, muted brass stabs
-  and soft noise swishes, all synthesized with WebAudio.
+- **The sound:** a "tiptoe pizzicato" palette of plucky strings, woodblock ticks, muted brass stabs and soft
+  swishes. Effects are short generated clips in `public/audio/sfx` (trimmed and level-matched: ticks and
+  footsteps sit quietest, stings and fanfares loudest). The original WebAudio synth versions in `sfx.ts` play as a
+  fallback if a clip fails to load, and the music is still synthesized.
 - **Menus:**
   - Move is a woodblock tick.
   - Select is two plucks going up (a fifth).
@@ -229,6 +231,7 @@ when something is revealed.
   - The title sting is "da-da-da-DUM!" plus a cymbal swish.
 - **Game:**
   - Dice rattle.
+  - The thief's own tiptoe steps reuse the footstep clip, softer and lower. Nothing plays for a hidden thief.
   - Detective footsteps are soft taps per step. The hidden thief is never heard.
   - A camera click, the alarm (a two-tone siren), the snip (a scissor chirp) and the lock clunk.
   - Power down is a falling whine plus a thump, and power up is the reverse.

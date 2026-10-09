@@ -215,7 +215,7 @@ function play(e: GameEvent, ctx: Ctx): number {
       return 1300;
     case "playStarted":
       banner("LIGHTS OUT!", "gold", iAmThief ? "Pick a window or door to sneak in through." : "The thief is somewhere outside…");
-      sfx.titleSting();
+      sfx.playStart();
       setMusic("calm");
       return 1800;
     case "thiefTurn":
@@ -230,7 +230,7 @@ function play(e: GameEvent, ctx: Ctx): number {
     case "thiefMoved":
       useFx.setState({ hint: null });
       if (e.path) {
-        e.path.forEach((_, i) => setTimeout(() => sfx.step(i), i * 170 * speed()));
+        e.path.forEach((_, i) => setTimeout(() => sfx.footstepThief(i), i * 170 * speed()));
         return 200 + e.path.length * 170;
       }
       if (e.vis === "thief") return 250;
@@ -242,22 +242,22 @@ function play(e: GameEvent, ctx: Ctx): number {
       return 1100;
     case "paintingStolen":
       if (e.pending) {
-        sfx.lift();
+        sfx.paintingUnhook();
         return 500;
       }
       useFx.setState({ lifting: { painting: e.painting, cell: e.cell, until: performance.now() + 1100 * speed() } });
       sfx.steal();
       return 1000;
     case "cameraDisabled":
-      sfx.cameraClick();
+      sfx.cameraDisable();
       return 500;
     case "powerCut":
       sfx.powerDown();
       return 900;
     case "lockTried":
       useFx.setState({ flipping: { slot: e.slot, until: performance.now() + 1000 * speed() } });
-      sfx.lockClunk();
-      if (e.face === "open") setTimeout(() => sfx.lockOpen(), 500 * speed());
+      if (e.face === "open") sfx.lockOpen();
+      else sfx.lockClunk();
       flash({ kind: "ping", cells: [e.cell] }, 2000);
       return 1200;
     case "rolled":
@@ -267,6 +267,7 @@ function play(e: GameEvent, ctx: Ctx): number {
       sfx.dice();
       return 1100;
     case "boxedIn":
+      sfx.blockedBump();
       return 600;
     case "detectiveMoved":
       e.path.forEach((_, i) => setTimeout(() => sfx.step(i), i * 170 * speed()));
@@ -279,7 +280,7 @@ function play(e: GameEvent, ctx: Ctx): number {
     case "eye": {
       const cells = board.sight[e.from] ?? [];
       flash({ kind: e.seen ? "sightHit" : "sightMiss", cells, source: e.pawn }, e.seen ? 1600 : 1000);
-      sfx.whoosh();
+      sfx.flashlightSweep();
       if (!e.seen) setTimeout(() => sfx.no(), 500 * speed());
       return e.seen ? 500 : 1000;
     }
@@ -303,6 +304,7 @@ function play(e: GameEvent, ctx: Ctx): number {
         setTimeout(() => sfx.no(), 300 * speed());
       } else if (e.result === "dead" && cam !== null) {
         flash({ kind: "spark", cells: [cam] }, 1200);
+        setTimeout(() => sfx.cameraDisable(), 300 * speed());
       }
       return e.result === "powerOut" ? 400 : 1200;
     }
@@ -313,8 +315,12 @@ function play(e: GameEvent, ctx: Ctx): number {
         setTimeout(() => {
           const cam = cameraCell(ctx, n);
           if (cam === null) return;
-          if (e.removed.includes(n)) flash({ kind: "spark", cells: [cam] }, 900);
-          else flash({ kind: e.seeing.includes(n) ? "sightHit" : "sightMiss", cells: board.sight[cam], source: n }, e.seeing.includes(n) ? 1600 : 700);
+          if (e.removed.includes(n)) {
+            flash({ kind: "spark", cells: [cam] }, 900);
+            sfx.cameraDisable();
+            return;
+          }
+          flash({ kind: e.seeing.includes(n) ? "sightHit" : "sightMiss", cells: board.sight[cam], source: n }, e.seeing.includes(n) ? 1600 : 700);
           sfx.cameraPing(i);
         }, i * 220 * speed()),
       );
@@ -330,7 +336,7 @@ function play(e: GameEvent, ctx: Ctx): number {
       banner("LIGHTS OUT!", "alarm", "The power is cut: cameras and motion detectors are dead.");
       return 1500;
     case "motionAsked":
-      sfx.cameraClick();
+      sfx.motionPing();
       return 300;
     case "motion":
       if (e.result === "answered") {
@@ -357,12 +363,14 @@ function play(e: GameEvent, ctx: Ctx): number {
       banner("ESCAPED!", iAmThief ? "gold" : "alarm", `…with ${e.paintings} painting${e.paintings === 1 ? "" : "s"}`);
       return 2400;
     case "dawn":
-      sfx.powerUp();
+      sfx.dawn();
       setMusic("off");
       banner("DAWN BREAKS", iAmThief ? "alarm" : "mint", "The museum opens: the thief is trapped inside.");
       return 2200;
     case "roundOver":
       useFx.setState({ showResult: true, dice: null, diceDocked: false });
+      // Spectators don't have a side to win or lose for.
+      if (view.role) (iAmThief === (e.result.winner === "thief") ? sfx.roundWin : sfx.roundLose)();
       return 0;
     case "locksPlaced":
     case "locksShuffled":

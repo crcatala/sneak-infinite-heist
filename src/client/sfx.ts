@@ -1,4 +1,6 @@
-// Synthesized sound (WebAudio, no asset files): the "tiptoe pizzicato" palette from docs/STYLE.md.
+// Sound. Effects are short generated clips in public/audio/sfx (see docs/STYLE.md §8), decoded once and
+// played through the sfx bus; if a clip fails to load, the original synthesized version (the "tiptoe
+// pizzicato" palette) plays instead. Music is still synthesized with WebAudio.
 // Buses: master → music, sfx. Volumes come from prefs. The audio context is created on the first
 // user gesture (the title screen's "press any key"), as browsers require.
 
@@ -42,6 +44,7 @@ export function unlockAudio() {
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     applyVolumes();
+    decodeSamples(ctx);
   }
   if (ctx.state === "suspended") void ctx.resume();
 }
@@ -100,7 +103,90 @@ function pluck(freq: number, when = 0, gain = 0.16, dur = 0.35, bus = sfxBus) {
 
 const N = (semi: number) => 220 * 2 ** (semi / 12); // A3 = 0
 
-export const sfx = {
+// --- sampled effects ---------------------------------------------------------------------------
+// Clips are level-matched offline, so volume here is just taste: `gain` per play, `rate` for pitch,
+// `jitter` for a little random pitch variation on sounds that repeat (footsteps, menu ticks).
+
+const SAMPLE_IDS = [
+  "alarm", "answer-no", "answer-yes", "banner-whoosh", "blocked-bump", "camera-check", "camera-disable", "camera-ping",
+  "captured", "dawn", "dice-roll", "emote-pop", "error", "escaped", "flashlight-sweep", "footstep-detective", "lock-clunk",
+  "lock-open", "mark-pencil", "menu-back", "menu-move", "menu-select", "motion-ping", "painting-steal", "painting-unhook",
+  "piece-lift", "piece-place", "play-start", "player-back", "player-left", "power-cut", "power-restore", "round-lose",
+  "round-win", "spotlight-reveal", "title-sting", "turn-chime", "wire-snip",
+] as const;
+type SampleId = (typeof SAMPLE_IDS)[number];
+interface SampleOpts {
+  gain?: number;
+  rate?: number;
+  jitter?: number;
+}
+
+const samples = new Map<SampleId, AudioBuffer>();
+const failed = new Set<SampleId>();
+/** Plays asked for before their clip finished decoding (e.g. the title sting on the first keypress). */
+const waiting: { id: SampleId; o: SampleOpts; at: number }[] = [];
+const WAIT_MS = 1500;
+
+// Fetch starts at import so the files are usually in memory by the first user gesture.
+const fetched = new Map<SampleId, Promise<ArrayBuffer | null>>();
+if (typeof window !== "undefined" && typeof fetch === "function") {
+  for (const id of SAMPLE_IDS) {
+    fetched.set(
+      id,
+      fetch(`${import.meta.env.BASE_URL}audio/sfx/${id}.mp3`)
+        .then((r) => (r.ok ? r.arrayBuffer() : null))
+        .catch(() => null),
+    );
+  }
+}
+
+function decodeSamples(c: AudioContext) {
+  for (const id of SAMPLE_IDS) {
+    void (fetched.get(id) ?? Promise.resolve(null))
+      .then((data) => (data ? c.decodeAudioData(data) : null))
+      .then((buf) => {
+        if (!buf) throw new Error("no data");
+        samples.set(id, buf);
+        for (let i = waiting.length - 1; i >= 0; i--) {
+          const w = waiting[i];
+          if (w.id !== id) continue;
+          waiting.splice(i, 1);
+          if (performance.now() - w.at < WAIT_MS) startSample(c, buf, w.o);
+        }
+      })
+      .catch(() => {
+        failed.add(id);
+        // Anything queued for it falls back to nothing: the synth fallback only covers new plays.
+        for (let i = waiting.length - 1; i >= 0; i--) if (waiting[i].id === id) waiting.splice(i, 1);
+      });
+  }
+}
+
+function startSample(c: AudioContext, buf: AudioBuffer, o: SampleOpts) {
+  if (!sfxBus) return;
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  src.playbackRate.value = (o.rate ?? 1) * (1 + (Math.random() * 2 - 1) * (o.jitter ?? 0));
+  const g = c.createGain();
+  g.gain.value = o.gain ?? 1;
+  src.connect(g).connect(sfxBus);
+  src.start();
+}
+
+/** Returns false only when the clip is unavailable, so the caller can fall back to the synth. */
+function sample(id: SampleId, o: SampleOpts = {}): boolean {
+  if (failed.has(id)) return false;
+  const c = a();
+  if (!c) return true; // audio not unlocked (or suspended): the synth would be silent too
+  const buf = samples.get(id);
+  if (buf) startSample(c, buf, o);
+  else waiting.push({ id, o, at: performance.now() });
+  return true;
+}
+
+// --- synthesized originals (fallbacks) ---------------------------------------------------------
+
+const synth = {
   menuMove() {
     noise(0, 0.05, 1800, 1200, 0.22, 4);
     tone(880, 0, 0.05, 0.05, "square");
@@ -214,6 +300,132 @@ export const sfx = {
     pluck(N(7), 0, 0.14);
     pluck(N(12), 0.1, 0.14);
     pluck(N(16), 0.2, 0.14);
+  },
+};
+
+export const sfx = {
+  menuMove() {
+    sample("menu-move", { jitter: 0.05 }) || synth.menuMove();
+  },
+  menuSelect() {
+    sample("menu-select") || synth.menuSelect();
+  },
+  menuBack() {
+    sample("menu-back") || synth.menuBack();
+  },
+  titleSting() {
+    sample("title-sting") || synth.titleSting();
+  },
+  error() {
+    sample("error") || synth.error();
+  },
+  place() {
+    sample("piece-place", { jitter: 0.03 }) || synth.place();
+  },
+  lift() {
+    sample("piece-lift", { jitter: 0.03 }) || synth.lift();
+  },
+  dice() {
+    sample("dice-roll") || synth.dice();
+  },
+  /** One detective footstep; `n` is the step's index along the path (alternates the pitch a touch). */
+  step(n = 0) {
+    sample("footstep-detective", { jitter: 0.06, rate: n % 2 ? 0.97 : 1.03 }) || synth.step(n);
+  },
+  /** The thief's own steps (never played for a hidden thief): the same clip, softer and a touch lower. */
+  footstepThief(n = 0) {
+    sample("footstep-detective", { gain: 0.75, jitter: 0.06, rate: n % 2 ? 0.88 : 0.93 }) || synth.step(n);
+  },
+  cameraClick() {
+    sample("camera-check") || synth.cameraClick();
+  },
+  cameraDisable() {
+    sample("camera-disable") || synth.cameraClick();
+  },
+  /** Scan ping `i` of a sequence: each one a whole tone higher than the last. */
+  cameraPing(i = 0) {
+    sample("camera-ping", { rate: 2 ** ((Math.min(i, 5) * 2) / 12) }) || synth.cameraPing(i);
+  },
+  yes() {
+    sample("answer-yes") || synth.yes();
+  },
+  no() {
+    sample("answer-no") || synth.no();
+  },
+  alarm() {
+    sample("alarm") || synth.alarm();
+  },
+  spotlight() {
+    sample("spotlight-reveal") || synth.spotlight();
+  },
+  snip() {
+    sample("wire-snip") || synth.snip();
+  },
+  powerDown() {
+    sample("power-cut") || synth.powerDown();
+  },
+  powerUp() {
+    sample("power-restore") || synth.powerUp();
+  },
+  lockClunk() {
+    sample("lock-clunk") || synth.lockClunk();
+  },
+  lockOpen() {
+    sample("lock-open", { gain: 1.25 }) || synth.lockOpen();
+  },
+  steal() {
+    sample("painting-steal") || synth.steal();
+  },
+  paintingUnhook() {
+    sample("painting-unhook") || synth.lift();
+  },
+  capture() {
+    sample("captured") || synth.capture();
+  },
+  escape() {
+    sample("escaped") || synth.escape();
+  },
+  timerTick() {
+    synth.timerTick();
+  },
+  whoosh() {
+    sample("banner-whoosh") || synth.whoosh();
+  },
+  emote() {
+    sample("emote-pop") || synth.emote();
+  },
+  turnChime() {
+    sample("turn-chime") || synth.turnChime();
+  },
+  playStart() {
+    sample("play-start") || synth.titleSting();
+  },
+  flashlightSweep() {
+    sample("flashlight-sweep") || synth.whoosh();
+  },
+  motionPing() {
+    sample("motion-ping") || synth.cameraClick();
+  },
+  blockedBump() {
+    sample("blocked-bump");
+  },
+  markPencil() {
+    sample("mark-pencil", { jitter: 0.04 }) || synth.menuMove();
+  },
+  dawn() {
+    sample("dawn") || synth.powerUp();
+  },
+  roundWin() {
+    sample("round-win");
+  },
+  roundLose() {
+    sample("round-lose");
+  },
+  playerLeft() {
+    sample("player-left");
+  },
+  playerBack() {
+    sample("player-back");
   },
 };
 
