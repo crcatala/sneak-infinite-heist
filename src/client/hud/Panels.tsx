@@ -217,6 +217,34 @@ export function LogPanel({ view, game }: { view: RoomView; game: GameView }) {
   );
 }
 
+/** Whether the device is driven by touch (no Shift key for the mark gesture). */
+export const touchFirst = () => typeof matchMedia === "function" && matchMedia("(any-pointer: coarse)").matches;
+
+/** Whether detectives get the Pin / Mark switch: only where suspect marks are on and there's no Shift key. */
+export function showsPointerToggle(view: RoomView, game: GameView) {
+  return view.role === "detective" && game.phase !== "roundOver" && game.rules.assist !== "off" && touchFirst();
+}
+
+/** Touch detectives: picks what a long-press drops (a team pin, or the persistent suspect mark). */
+export function PointerToggle() {
+  const mode = useGameUi((s) => s.pointerMode);
+  const set = useGameUi((s) => s.set);
+  const mark = mode === "mark";
+  return (
+    <button
+      className={`btn small pointer-toggle${mark ? " on" : ""}`}
+      aria-pressed={mark}
+      title="What a long-press drops on the board"
+      onClick={() => {
+        set({ pointerMode: mark ? "pin" : "mark" });
+        sfx.menuMove();
+      }}
+    >
+      {mark ? "❓ Mark" : "📍 Pin"}
+    </button>
+  );
+}
+
 export function EmoteBar({ view }: { view: RoomView }) {
   const send = useStore((s) => s.send);
   const emotes = useStore((s) => s.emotes);

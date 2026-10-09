@@ -23,6 +23,12 @@ export function cellPos(board: Board, c: Cell, y = FLOOR_Y): THREE.Vector3 {
 }
 
 /** The cell under a world point, or null. */
+/** The inverse of gridXZ: a world position as board-grid units, clamped to the board's edges. */
+export function worldToGrid(board: Board, x: number, z: number): [number, number] {
+  const clamp = (v: number, size: number) => Math.min(size - 0.5, Math.max(-0.5, v));
+  return [clamp(x + (board.width - 1) / 2, board.width), clamp(z + (board.height - 1) / 2, board.height)];
+}
+
 export function cellAtWorld(board: Board, x: number, z: number): Cell | null {
   const gx = Math.round(x + (board.width - 1) / 2);
   const gy = Math.round(z + (board.height - 1) / 2);

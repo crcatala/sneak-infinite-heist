@@ -47,6 +47,8 @@ export interface GameUi {
   replayTurn: number | null;
   /** Round-end replay: also show where the detectives went (off = the thief's path only). */
   replayDetectives: boolean;
+  /** Detective: what a right-click / long-press drops. Touch has no Shift key, so it picks here. */
+  pointerMode: "pin" | "mark";
   set: (p: Partial<GameUi>) => void;
   resetTurn: () => void;
 }
@@ -70,6 +72,7 @@ export const useGameUi = create<GameUi>((set) => ({
   cursor: null,
   replayTurn: null,
   replayDetectives: true,
+  pointerMode: "pin",
   set: (p) => set(p),
   resetTurn: () => set({ plan: EMPTY_PLAN, moveDest: null, eyePreview: null, eyeTarget: null, held: null, cursor: null }),
 }));
