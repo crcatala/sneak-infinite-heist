@@ -151,7 +151,8 @@ src/
     scene/              Museum diorama, pieces, overlays, camera rig, title scene, bloom
     hud/                turn bar, action panel, plotting pad, dice tray, log, motion prompt, round over
     game/               interaction (clicks and highlights), event presentation, derived helpers
-    sfx.ts              sound effects (clips from public/audio/sfx, synth fallback) and synthesized music (WebAudio)
+    sfx.ts              sound effects (clips from public/audio/sfx, synth fallback), volume buses
+    music.ts            background music and round-end stingers (public/audio/music), crossfaded
 ```
 
 - **The server is the referee.** The full game state lives only in the room's Durable Object (or the in-tab engine
@@ -270,8 +271,10 @@ friends.
 - It isn't affiliated with, sponsored by or endorsed by Hasbro, Parker Brothers or any of their brands. *Clue* is a
   trademark of Hasbro, Inc.
 - No artwork, rules text, logos, characters or other assets from the original game are used. The 3D models,
-  textures, the nine paintings, the detectives and the music are all original and made in code for this project.
+  textures, the nine paintings and the detectives are all original and made in code for this project.
   The sound effects (`public/audio/sfx`) were generated with [ElevenLabs](https://elevenlabs.io) from text prompts.
+  The music (`public/audio/music`) is original to this project; `node scripts/normalize-music.mjs <dir>` rebuilds
+  the level-matched MP3s from raw exports.
 - **Fonts:** Bungee, Fredoka, Nunito and Caveat, all under the SIL Open Font License, served by Google Fonts.
 - **Built with** React, Three.js, React Three Fiber and drei, zustand, zod and Cloudflare Workers.
 

@@ -13,6 +13,7 @@ import { TurnBar } from "../hud/TurnBar";
 import { activePawn } from "../game/derive";
 import { useBoardInteraction } from "../game/interact";
 import { defersToFocusedControl, primaryIntent } from "../game/keys";
+import { musicFor } from "../game/musicFor";
 import { ingest, resetPlayer, setFastForward, skipFx, useFx } from "../game/present";
 import { useGameUi } from "../game/uiStore";
 import { GameScene } from "../scene/GameScene";
@@ -41,8 +42,8 @@ export function Game() {
   useEffect(() => () => resetPlayer(), []);
 
   useEffect(() => {
-    if (game.phase === "play") setMusic(game.thief.revealed ? "chase" : "calm");
-  }, [game.phase, game.thief.revealed]);
+    if (game.phase === "play") setMusic(musicFor({ revealed: game.thief.revealed, powerCut: game.power.cut }));
+  }, [game.phase, game.thief.revealed, game.power.cut]);
 
   // A new turn clears stale selections.
   const turnKey = `${game.phase}:${game.thief.turns}:${game.turn.kind}:${game.turn.kind === "detective" ? game.turn.pawn : ""}`;

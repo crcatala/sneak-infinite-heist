@@ -223,7 +223,7 @@ when something is revealed.
 - **The sound:** a "tiptoe pizzicato" palette of plucky strings, woodblock ticks, muted brass stabs and soft
   swishes. Effects are short generated clips in `public/audio/sfx` (trimmed and level-matched: ticks and
   footsteps sit quietest, stings and fanfares loudest). The original WebAudio synth versions in `sfx.ts` play as a
-  fallback if a clip fails to load, and the music is still synthesized.
+  fallback if a clip fails to load. The music is a set of original tracks in `public/audio/music` (see Music below).
 - **Menus:**
   - Move is a woodblock tick.
   - Select is two plucks going up (a fifth).
@@ -235,7 +235,24 @@ when something is revealed.
   - Detective footsteps are soft taps per step. The hidden thief is never heard.
   - A camera click, the alarm (a two-tone siren), the snip (a scissor chirp) and the lock clunk.
   - Power down is a falling whine plus a thump, and power up is the reverse.
-  - Capture is a brass "wah-wah" plus a cymbal, and escape is a rising fanfare.
-- **Ambient:** an optional quiet walking-bass pizzicato loop. In chase mode it doubles its tempo and adds a
-  hi-hat.
-- **Volumes:** master, music and SFX, all persisted.
+  - Capture is a muted-trombone "wah-wah" stinger, escape is a rising brass-and-glockenspiel fanfare, and dawn
+    is a sunrise chord with a smug clarinet. All three are music-bus stingers, not effects.
+- **Music:** one track per mood, streamed and crossfaded (`src/client/music.ts`):
+
+  | Track | Plays | Feel |
+  |---|---|---|
+  | `title` | title and menus | jazzy swing-lite, ~96 BPM |
+  | `lobby` | lobby and setup | light and bouncy, ~100 BPM |
+  | `calm` | the thief is hidden | hushed pizzicato tiptoe, ~88 BPM, built to loop for a long time |
+  | `lights-out` | the power is cut | slower and eerie but toy-like, ~72 BPM |
+  | `chase` | the thief is revealed | frantic cartoon pursuit, ~150 BPM |
+  | `results` | round-over screen | relaxed victory lap, ~80 BPM |
+
+  - The chase wins over lights-out, which wins over calm. Only public state picks the track: a detective hears
+    lights-out when they discover the cut, never earlier.
+  - Tracks end in a fade-out, so a loop crossfades the tail into the start (2.5 s). Switching tracks takes 1.4 s,
+    and the chase 0.4 s so it lands with its banner.
+  - Tracks are level-matched offline (`scripts/normalize-music.mjs`): loops sit at -17 to -20 LUFS, stingers at
+    -17, with a -1.5 dBFS peak ceiling.
+- **Volumes:** master, music and SFX, all persisted. The speaker button (title screen, lobby, in-game turn bar)
+  opens a quick mixer with the three sliders and a mute switch, and the Settings page has the same sliders.

@@ -1,10 +1,17 @@
 // Sound. Effects are short generated clips in public/audio/sfx (see docs/STYLE.md §8), decoded once and
 // played through the sfx bus; if a clip fails to load, the original synthesized version (the "tiptoe
-// pizzicato" palette) plays instead. Music is still synthesized with WebAudio.
+// pizzicato" palette) plays instead. Music and the round-end stingers live in music.ts.
 // Buses: master → music, sfx. Volumes come from prefs. The audio context is created on the first
 // user gesture (the title screen's "press any key"), as browsers require.
 
+import { attachMusic, playStinger, setMusic, syncMusic } from "./music";
 import { usePrefs } from "./prefs";
+
+export { setMusic };
+export type { MusicMode } from "./music";
+
+/** Music bus level at a slider value of 1: the tracks are level-matched offline, this sits them under the effects. */
+const MUSIC_BUS = 0.8;
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -17,7 +24,7 @@ function applyVolumes() {
   if (!ctx || !master || !musicBus || !sfxBus) return;
   const t = ctx.currentTime;
   master.gain.setTargetAtTime(p.muted ? 0 : p.master, t, 0.05);
-  musicBus.gain.setTargetAtTime(p.music * 0.55, t, 0.05);
+  musicBus.gain.setTargetAtTime(p.music * MUSIC_BUS, t, 0.05);
   sfxBus.gain.setTargetAtTime(p.sfx, t, 0.05);
 }
 usePrefs.subscribe(applyVolumes);
@@ -43,10 +50,13 @@ export function unlockAudio() {
     noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    attachMusic(ctx, musicBus);
     applyVolumes();
     decodeSamples(ctx);
   }
-  if (ctx.state === "suspended") void ctx.resume();
+  // Music asked for before the first gesture (a deep link, say) starts once the context runs.
+  if (ctx.state === "suspended") void ctx.resume().then(syncMusic);
+  else syncMusic();
 }
 
 export function audioReady() {
@@ -109,7 +119,7 @@ const N = (semi: number) => 220 * 2 ** (semi / 12); // A3 = 0
 
 const SAMPLE_IDS = [
   "alarm", "answer-no", "answer-yes", "banner-whoosh", "blocked-bump", "camera-check", "camera-disable", "camera-ping",
-  "captured", "dawn", "dice-roll", "emote-pop", "error", "escaped", "flashlight-sweep", "footstep-detective", "lock-clunk",
+  "dice-roll", "emote-pop", "error", "flashlight-sweep", "footstep-detective", "lock-clunk",
   "lock-open", "mark-pencil", "menu-back", "menu-move", "menu-select", "motion-ping", "painting-steal", "painting-unhook",
   "piece-lift", "piece-place", "play-start", "player-back", "player-left", "power-cut", "power-restore", "round-lose",
   "round-win", "spotlight-reveal", "title-sting", "turn-chime", "wire-snip",
@@ -380,10 +390,10 @@ export const sfx = {
     sample("painting-unhook") || synth.lift();
   },
   capture() {
-    sample("captured") || synth.capture();
+    playStinger("captured") || synth.capture();
   },
   escape() {
-    sample("escaped") || synth.escape();
+    playStinger("escaped") || synth.escape();
   },
   timerTick() {
     synth.timerTick();
@@ -413,7 +423,7 @@ export const sfx = {
     sample("mark-pencil", { jitter: 0.04 }) || synth.menuMove();
   },
   dawn() {
-    sample("dawn") || synth.powerUp();
+    playStinger("museum-opens") || synth.powerUp();
   },
   roundWin() {
     sample("round-win");
@@ -428,59 +438,3 @@ export const sfx = {
     sample("player-back");
   },
 };
-
-// --- music -----------------------------------------------------------------------------------
-
-type MusicMode = "off" | "title" | "calm" | "chase";
-let mode: MusicMode = "off";
-let timer: ReturnType<typeof setInterval> | undefined;
-let nextBeat = 0;
-let beat = 0;
-
-// D minor walking line (semitones from A3) and a pad chord per bar.
-const BASS = [-7, -2, 1, 3, 5, 3, 1, -2, -5, -2, 0, 3, 4, 3, 0, -3];
-const PADS = [
-  [5, 8, 12],
-  [3, 7, 10],
-  [0, 5, 8],
-  [1, 4, 8],
-];
-
-function schedule() {
-  const c = a();
-  if (!c || !musicBus) return;
-  const bpm = mode === "chase" ? 150 : mode === "title" ? 96 : 88;
-  const spb = 60 / bpm / 2; // eighth notes
-  while (nextBeat < c.currentTime + 0.15) {
-    const when = nextBeat - c.currentTime;
-    const step = beat % 16;
-    if (beat % 2 === 0) pluck(N(BASS[(beat / 2) % 16] - 12), when, mode === "chase" ? 0.2 : 0.16, 0.3, musicBus);
-    if (step === 0) PADS[Math.floor(beat / 16) % 4].forEach((s) => tone(N(s), when, spb * 15, 0.025, "sine", musicBus));
-    if (mode === "chase") {
-      noise(when, 0.03, 9000, 7000, beat % 2 ? 0.05 : 0.09, 3, "highpass", musicBus);
-      if (step % 4 === 0) tone(60, when, 0.15, 0.25, "sine", musicBus, 40);
-    } else if (step % 4 === 2) noise(when, 0.02, 5000, 4000, 0.03, 4, "bandpass", musicBus);
-    if (mode === "title" && step % 8 === 6) pluck(N(12 + [0, 3, 7, 10][(beat / 8) % 4 | 0]), when, 0.05, 0.4, musicBus);
-    nextBeat += spb;
-    beat++;
-  }
-}
-
-export function setMusic(next: MusicMode) {
-  if (next === mode) return;
-  mode = next;
-  clearInterval(timer);
-  timer = undefined;
-  if (mode === "off") return;
-  const c = a();
-  if (c) nextBeat = c.currentTime + 0.1;
-  timer = setInterval(() => {
-    if (!a()) return;
-    if (nextBeat === 0 || nextBeat < a()!.currentTime) nextBeat = a()!.currentTime + 0.05;
-    schedule();
-  }, 40);
-}
-
-export function musicMode(): MusicMode {
-  return mode;
-}

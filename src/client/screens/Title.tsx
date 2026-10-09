@@ -7,9 +7,9 @@ import { ROOM_CODE_LENGTH, ROOM_CODE_RE } from "../../shared/roomCode";
 import type { InviteInfo, RoomRecord } from "../../shared/invites";
 import { Icon } from "../components/Icon";
 import { Logo } from "../components/Logo";
-import { MuteButton } from "../components/MuteButton";
 import { KeyHints, MenuHeader, MenuList, useMenuKeys, type MenuItem } from "../components/Menu";
 import { SettingsPanel } from "../components/SettingsPanel";
+import { VolumeControl } from "../components/VolumeControl";
 import { loadName, saveName } from "../identity";
 import { createRoom, deleteRoom, fetchInvite, forgetInvite, InviteError, loadInvite, saveInvite } from "../invite";
 import { roomExists } from "../net";
@@ -91,7 +91,7 @@ export function Title() {
       </div>
       {page !== "boot" && (
         <footer className="title-foot">
-          <MuteButton className="ghost" />
+          <VolumeControl className="ghost" placement="up" align="start" />
           <span>v{VERSION}</span>
           <span className="faint">An original caper · not affiliated with any board-game publisher</span>
         </footer>
