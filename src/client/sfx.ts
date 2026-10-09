@@ -408,7 +408,7 @@ export const sfx = {
   emote() {
     sample("emote-pop") || synth.emote();
   },
-  /** A teammate's pin landing. */
+  /** Someone else's pin landing. */
   pinDrop() {
     synth.pinDrop();
   },

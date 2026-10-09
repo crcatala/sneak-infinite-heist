@@ -101,7 +101,7 @@ either order:
 | Input | Action |
 |---|---|
 | Click or tap | Pick a space, plinth, piece or option |
-| Right-click or long-press | Drop a pointer pin for your team (detectives; fades after 8 s, 3 per player) · remove a piece (setup) |
+| Right-click or long-press | Drop a pointer pin (detectives place them, everyone sees them; fades after 8 s, 3 per player) · remove a piece (setup) |
 | Shift + right-click | Suspect mark (detectives). On touch, the Pin / Mark switch picks what a long-press drops |
 | Drag · pinch · two fingers | Rotate · zoom · pan |
 | <kbd>1</kbd> · <kbd>2</kbd>/<kbd>T</kbd> · <kbd>F</kbd> | Overview · top-down tactical · focus on my pawn |

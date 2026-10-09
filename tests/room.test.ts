@@ -407,11 +407,11 @@ describe("pointer pins", () => {
     return { room, deps, detective: ids[0], mate: ids[1], thief: ids[2] };
   }
 
-  it("goes to the sender and their teammates, never the thief", () => {
+  it("is public table talk: it goes to the sender and everyone else, thief included", () => {
     const { room, detective } = pinGame();
     const res = send(room, detective, { t: "pin", x: 3.25, y: 4.75 });
     const msg = { t: "pin", by: detective, x: 3.25, y: 4.75 };
-    expect(res.outbound).toEqual([{ to: "team", msg }, { to: "self", msg }]);
+    expect(res.outbound).toEqual([{ to: "others", msg }, { to: "self", msg }]);
   });
 
   it("is for detectives only", () => {

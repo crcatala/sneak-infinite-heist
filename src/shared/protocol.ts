@@ -125,7 +125,7 @@ export type ServerMessage =
   | { t: "closed"; code: number; message: string }
   | { t: "state"; view: RoomView }
   | { t: "emote"; by: string; emote: string }
-  /** A teammate's pointer pin (detectives only; the thief never receives these). */
+  /** A detective's pointer pin (only detectives place them; everyone in the room sees them). */
   | { t: "pin"; by: string; x: number; y: number }
   | { t: "error"; message: string }
   | { t: "pong" };

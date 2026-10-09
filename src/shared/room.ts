@@ -460,9 +460,10 @@ export class Room {
         const now = this.deps.now();
         if (now - (this.lastPin.get(playerId) ?? -Infinity) < PIN_COOLDOWN_MS) return;
         this.lastPin.set(playerId, now);
-        // Pins are team talk: the thief must never see where the detectives are pointing.
+        // Pins are public table talk, like emotes: detectives plan out loud with the thief listening in,
+        // so everyone in the room sees where they point.
         const out: ServerMessage = { t: "pin", by: playerId, x: msg.x, y: msg.y };
-        result.outbound.push({ to: "team", msg: out }, { to: "self", msg: out });
+        result.outbound.push({ to: "others", msg: out }, { to: "self", msg: out });
         return;
       }
 
