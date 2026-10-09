@@ -139,8 +139,9 @@ function start(mode: Playing, secs: number): Voice | null {
   node.connect(gain).connect(bus);
   const v: Voice = { mode, el, node, gain, retired: false };
   voices.add(v);
-  // Begin the fade when sound actually starts, not when the request goes out.
-  el.addEventListener("playing", () => fade(gain, 1, secs), { once: true });
+  // Begin the fade when sound actually starts, not when the request goes out. A voice that was
+  // retired while it was still loading must stay down, or it would fade up and then be cut off.
+  el.addEventListener("playing", () => !v.retired && fade(gain, 1, secs), { once: true });
   el.addEventListener("error", () => kill(v), { once: true });
   // Safety net for a throttled tab that never saw the loop point.
   el.addEventListener("ended", () => handOver(v, 0.2), { once: true });

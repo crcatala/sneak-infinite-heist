@@ -1,16 +1,32 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { musicFor } from "../src/client/game/musicFor";
 
-describe("which track the board plays", () => {
+describe("which track a game screen plays", () => {
+  const play = { phase: "play", revealed: false, powerCut: false, resultShown: false } as const;
+
   it("is calm until something happens", () => {
-    expect(musicFor({ revealed: false, powerCut: false })).toBe("calm");
+    expect(musicFor(play)).toBe("calm");
   });
   it("goes dark when the power is cut", () => {
-    expect(musicFor({ revealed: false, powerCut: true })).toBe("lights-out");
+    expect(musicFor({ ...play, powerCut: true })).toBe("lights-out");
   });
   it("lets the chase win over the blackout", () => {
-    expect(musicFor({ revealed: true, powerCut: true })).toBe("chase");
-    expect(musicFor({ revealed: true, powerCut: false })).toBe("chase");
+    expect(musicFor({ ...play, revealed: true, powerCut: true })).toBe("chase");
+    expect(musicFor({ ...play, revealed: true })).toBe("chase");
+  });
+  it("keeps the lobby's mood through every setup phase", () => {
+    for (const phase of ["setupLocks", "setupPaintings", "setupCameras", "setupDetectives"] as const) {
+      expect(musicFor({ ...play, phase })).toBe("lobby");
+    }
+  });
+  it("starts the results only once the round-over screen is showing", () => {
+    // Still in the capture or escape cinematic: leave the music alone so the stinger isn't cut short.
+    expect(musicFor({ ...play, phase: "roundOver" })).toBeNull();
+    expect(musicFor({ ...play, phase: "roundOver", resultShown: true })).toBe("results");
+  });
+  it("leaves the results behind when the next round starts", () => {
+    // The presenter clears resultShown for the new game, and its setup then plays the lobby track.
+    expect(musicFor({ ...play, phase: "setupLocks", resultShown: false })).toBe("lobby");
   });
 });
 
@@ -58,10 +74,15 @@ class FakeAudio {
   removeAttribute() {}
   load() {}
 }
+const gains: FakeGain[] = [];
 const fakeCtx = (state = "running") => ({
   state,
   currentTime: 0,
-  createGain: () => new FakeGain(),
+  createGain: () => {
+    const g = new FakeGain();
+    gains.push(g);
+    return g;
+  },
   createMediaElementSource: () => ({ connect: <T>(to: T) => to, disconnect() {} }),
 });
 
@@ -81,6 +102,7 @@ describe("music player", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     FakeAudio.all = [];
+    gains.length = 0;
     vi.stubGlobal("Audio", FakeAudio);
   });
   afterEach(() => {
@@ -151,6 +173,17 @@ describe("music player", () => {
     vi.advanceTimersByTime(3000);
     expect(alive()).toEqual(["calm"]);
     expect(FakeAudio.all[0].killed).toBe(true);
+  });
+
+  it("keeps a track down if it is retired before its first audio arrives", async () => {
+    const { music } = await load();
+    music.setMusic("calm"); // still loading: no "playing" event yet
+    music.setMusic("chase"); // retires calm
+    expect(gains[0].gain.value).toBe(0);
+    FakeAudio.all[0].emit("playing"); // the network finally delivers calm
+    expect(gains[0].gain.value).toBe(0);
+    FakeAudio.all[1].emit("playing");
+    expect(gains[1].gain.value).toBe(1);
   });
 
   it("keeps looping when a track simply ends", async () => {
