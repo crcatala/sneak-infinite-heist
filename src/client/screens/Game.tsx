@@ -12,6 +12,7 @@ import { ThiefPad } from "../hud/ThiefPad";
 import { TurnBar } from "../hud/TurnBar";
 import { activePawn } from "../game/derive";
 import { useBoardInteraction } from "../game/interact";
+import { defersToFocusedControl, primaryIntent } from "../game/keys";
 import { ingest, resetPlayer, setFastForward, skipFx, useFx } from "../game/present";
 import { useGameUi } from "../game/uiStore";
 import { GameScene } from "../scene/GameScene";
@@ -158,33 +159,48 @@ function useKeys() {
 
       const t = game.turn;
       const myDet = t.kind === "detective" && activePawn(game)?.controller === view.you && !t.awaitingThief;
-      if (k === "Enter" && myDet && t.roll?.action === "eye" && !t.acted && ui.eyeTarget !== null) {
+
+      // A button the player tabbed to gets its own Enter / Space (Cancel must cancel).
+      let focusVisible = false;
+      try {
+        focusVisible = el.matches(":focus-visible");
+      } catch {
+        // Very old browsers: treat focus as pointer-driven and keep the shortcuts.
+      }
+      if (defersToFocusedControl(k, { tag: el.tagName, role: el.getAttribute("role"), focusVisible })) return;
+
+      const intent = primaryIntent(k, {
+        role: view.role ?? null,
+        setup: game.phase.startsWith("setup"),
+        myDet,
+        rolled: t.kind === "detective" && !!t.roll,
+        eyeRoll: t.kind === "detective" && t.roll?.action === "eye",
+        acted: t.kind === "detective" && t.acted,
+        eyeTarget: ui.eyeTarget,
+        cursor: ui.cursor,
+        moveDest: ui.moveDest,
+        thiefPlanDest: ui.plan.dest,
+        iAmReady: !!game.ready[view.you],
+      });
+      if (intent) {
         e.preventDefault();
-        send({ t: "game", action: { a: "eye", target: ui.eyeTarget } });
-        return ui.set({ eyeTarget: null, eyePreview: null });
+        switch (intent.kind) {
+          case "eye":
+            send({ t: "game", action: { a: "eye", target: intent.target } });
+            return ui.set({ eyeTarget: null, eyePreview: null });
+          case "boardClick":
+            (window as unknown as { __boardClick?: (c: number) => void }).__boardClick?.(intent.cell);
+            return;
+          case "roll":
+            return send({ t: "game", action: { a: "roll" } });
+          case "move":
+            send({ t: "game", action: { a: "move", dest: intent.dest } });
+            return ui.set({ moveDest: null });
+          case "ready":
+            return send({ t: "game", action: { a: "setupReady", ready: intent.ready } });
+        }
       }
-      if (k === "Enter" || k === " ") {
-        // Primary action for the moment.
-        if (k === "Enter" && ui.cursor !== null && !(view.role === "thief" && ui.plan.dest === ui.cursor) && ui.moveDest !== ui.cursor) {
-          e.preventDefault();
-          (window as unknown as { __boardClick?: (c: number) => void }).__boardClick?.(ui.cursor);
-          return;
-        }
-        if (myDet && !t.roll) {
-          e.preventDefault();
-          return send({ t: "game", action: { a: "roll" } });
-        }
-        if (myDet && ui.moveDest !== null) {
-          e.preventDefault();
-          send({ t: "game", action: { a: "move", dest: ui.moveDest } });
-          return ui.set({ moveDest: null });
-        }
-        if (game.phase.startsWith("setup") && view.role === "detective" && k === "Enter") {
-          e.preventDefault();
-          return send({ t: "game", action: { a: "setupReady", ready: !game.ready[view.you] } });
-        }
-        return;
-      }
+      if (k === "Enter" || k === " ") return;
       if (myDet && t.roll && !t.acted) {
         // Eye is a two-step: these pick the target, and Enter (or the Confirm button) asks it.
         if ((k === "e" || k === "E") && t.roll.action === "eye") return ui.set({ eyeTarget: "self", eyePreview: "self" });

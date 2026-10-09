@@ -7,7 +7,8 @@ import type { GameView } from "../../shared/game/views";
 import { EMOTES, type RoomView } from "../../shared/protocol";
 import { Icon } from "../components/Icon";
 import { activePawn, pawnHex, pawnName } from "../game/derive";
-import { buildLog, skipFx, useFx, type LogLine, type Part } from "../game/present";
+import { buildLog, relativeTime, type LogLine, type Part } from "../game/narrate";
+import { skipFx, useFx } from "../game/present";
 import { useGameUi } from "../game/uiStore";
 import { drawPatternCss } from "./patterns";
 import { sfx } from "../sfx";
@@ -75,17 +76,6 @@ export function BannerLayer() {
       <div className="cine-skip faint small">click or Space to skip</div>
     </div>
   );
-}
-
-/** "just now", "42s ago", "3m ago", "2h ago". */
-export function relativeTime(at: number, now: number): string {
-  const sec = Math.max(0, Math.round((now - at) / 1000));
-  if (sec < 10) return "just now";
-  if (sec < 60) return `${sec}s ago`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  return hr < 24 ? `${hr}h ago` : `${Math.floor(hr / 24)}d ago`;
 }
 
 /** Re-renders every `ms` so relative times keep ticking. */
