@@ -1,19 +1,20 @@
 // Round end: the result, stats, a replay of the thief's secret path with a timeline scrubber (on the
 // pad map and the 3D board), then "Next round" or the match standings. Plus the pause menu.
 
-import { useEffect, useState } from "react";
-import { ARTWORKS } from "../../shared/characters";
+import { useEffect, useMemo, useState } from "react";
+import { ARTWORKS, character } from "../../shared/characters";
 import { getBoard } from "../../shared/board/model";
 import type { GameView } from "../../shared/game/views";
 import type { RoomView } from "../../shared/protocol";
 import { Icon } from "../components/Icon";
 import { MenuList, type MenuItem } from "../components/Menu";
 import { SettingsPanel } from "../components/SettingsPanel";
-import { pawnName, playerName, slotLabel } from "../game/derive";
+import { pawnHex, pawnName, playerName, slotLabel } from "../game/derive";
+import { buildReplay, movesUpTo, positionsAt } from "../game/replay";
 import { useGameUi } from "../game/uiStore";
 import { navigate } from "../router";
 import { useStore } from "../store";
-import { PadMap } from "./ThiefPad";
+import { PadMap, type PadDetectives } from "./ThiefPad";
 
 export function RoundOver({ view, game }: { view: RoomView; game: GameView }) {
   const send = useStore((s) => s.send);
@@ -23,6 +24,8 @@ export function RoundOver({ view, game }: { view: RoomView; game: GameView }) {
   const trail = game.thief.trail ?? [];
   const [turn, setTurn] = useState(trail.length);
   const [playing, setPlaying] = useState(false);
+  const showDetectives = useGameUi((s) => s.replayDetectives);
+  const rounds = useMemo(() => buildReplay({ view, game }), [view, game]);
   const thiefWon = result.winner === "thief";
   const iWasThief = view.role === "thief";
   const iWon = iWasThief === thiefWon;
@@ -40,6 +43,20 @@ export function RoundOver({ view, game }: { view: RoomView; game: GameView }) {
 
   const headline = result.reason === "escaped" ? "The thief escaped!" : result.reason === "captured" ? "The thief was nabbed!" : "Dawn: the museum opens!";
   const step = trail[turn - 1];
+  const detectives = useMemo<PadDetectives | undefined>(() => {
+    if (!showDetectives) return undefined;
+    return {
+      moves: movesUpTo(rounds, turn).map(({ move, latest }) => ({ pawn: move.pawn, from: move.from, path: move.path, hex: pawnHex(game, move.pawn), latest })),
+      pawns: Object.entries(positionsAt(rounds, turn)).map(([pawn, cell]) => ({
+        pawn,
+        cell,
+        hex: pawnHex(game, pawn),
+        initial: character(game.detectives.find((d) => d.id === pawn)!.character).short[0],
+      })),
+    };
+  }, [showDetectives, rounds, turn, game]);
+  // What the detective did in reply to this thief turn (the rolls are noise next to their results).
+  const replies = showDetectives ? (rounds[turn]?.lines.filter((l) => l.kind !== "roll") ?? []) : [];
   const moreRounds = !!match && match.mode === "match" && !match.done;
 
   return (
@@ -63,7 +80,7 @@ export function RoundOver({ view, game }: { view: RoomView; game: GameView }) {
         {trail.length > 0 && (
           <div className="replay">
             <div className="replay-map paper">
-              <PadMap game={game} upTo={turn} />
+              <PadMap game={game} upTo={turn} detectives={detectives} />
             </div>
             <div className="replay-controls">
               <button className="btn small icon" aria-label={playing ? "Pause replay" : "Play replay"} onClick={() => {
@@ -77,11 +94,35 @@ export function RoundOver({ view, game }: { view: RoomView; game: GameView }) {
                 {turn === 0 ? "Before entry" : `Turn ${turn}`}
               </span>
             </div>
+            <label className="replay-toggle small">
+              <button
+                className="switch"
+                role="switch"
+                aria-checked={showDetectives}
+                aria-label="Show the detectives' moves"
+                onClick={() => useGameUi.getState().set({ replayDetectives: !showDetectives })}
+              />
+              Show the detectives' moves
+            </label>
             <p className="small muted replay-caption">
               {step
                 ? `${step.entry ? `Entered by ${slotLabel(board, step.entry)}, ` : ""}moved ${step.path.length}${step.stole !== undefined ? `, stole "${ARTWORKS[step.stole].title}"` : ""}${step.disabledCamera ? `, disabled camera ${step.disabledCamera}` : ""}${step.cutPower ? ", cut the power" : ""}${step.triedLock ? `, tried lock ${step.triedLock.slot.toUpperCase()} (${step.triedLock.face})` : ""}${step.public ? " (in plain sight)" : ""}.`
                 : "Scrub through the thief's secret path."}
             </p>
+            {showDetectives && (
+              <ul className="replay-replies small" aria-label="What the detectives did next">
+                {replies.length === 0 ? (
+                  <li className="muted">{turn === 0 ? "The detectives are at their posts." : "The detectives did nothing of note."}</li>
+                ) : (
+                  replies.map((l) => (
+                    <li key={l.seq} data-tone={l.tone}>
+                      <i className="replay-dot" style={{ background: l.hex ?? "var(--moon-200)" }} />
+                      {l.text}
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
           </div>
         )}
 

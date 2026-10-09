@@ -7,9 +7,10 @@ import * as THREE from "three";
 import { getBoard, type Cell } from "../../shared/board/model";
 import type { GameView } from "../../shared/game/views";
 import type { RoomView } from "../../shared/protocol";
-import { activePawn } from "../game/derive";
+import { activePawn, pawnHex } from "../game/derive";
 import type { BoardInteraction, PressAt } from "../game/interact";
 import { useFx } from "../game/present";
+import { buildReplay } from "../game/replay";
 import { useGameUi } from "../game/uiStore";
 import { usePrefs } from "../prefs";
 import { Mover, PopIn } from "./Actors";
@@ -75,6 +76,16 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
   const replayStep = replay && ui.replayTurn! > 0 ? replay[ui.replayTurn! - 1] : null;
   // Escaped: the thief dashes out onto the exit's plinth.
   const escapedTo = game.result?.reason === "escaped" && game.result.slot && ui.replayTurn === null ? board.slotById[game.result.slot].cell : null;
+  // ...and, if wanted, so are the detectives: where each stood after that turn and how they got there.
+  const rounds = useMemo(() => (replay ? buildReplay({ view, game }) : null), [replay, view, game]);
+  // Walk a replay step only when the scrubber moved one turn forward (play, or a nudge): after a jump or
+  // a step back the pieces just stand where they were, instead of gliding along a route they didn't take.
+  const prevReplayTurn = useRef(ui.replayTurn);
+  useEffect(() => {
+    prevReplayTurn.current = ui.replayTurn;
+  }, [ui.replayTurn]);
+  const stepped = ui.replayTurn !== null && prevReplayTurn.current !== null && ui.replayTurn === prevReplayTurn.current + 1;
+  const detReplay = rounds && ui.replayDetectives ? rounds[Math.min(ui.replayTurn!, rounds.length - 1)] : null;
   const thiefShown = replay ? (replayStep ? replayStep.path[replayStep.path.length - 1] : null) : (escapedTo ?? game.thief.cell);
 
   const lifting = fx.lifting && fx.lifting.until > performance.now() ? fx.lifting : null;
@@ -160,14 +171,20 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
       ))}
 
       {/* detectives */}
-      {game.detectives.map((d) =>
-        d.cell === null ? null : (
-          <Mover key={d.id} board={board} cell={d.cell} path={paths[d.id]}>
+      {game.detectives.map((d) => {
+        const cell = detReplay ? (detReplay.positions[d.id] ?? null) : d.cell;
+        if (cell === null) return null;
+        const move = detReplay?.moves.filter((m) => m.pawn === d.id).pop();
+        return (
+          <Mover key={d.id} board={board} cell={cell} path={detReplay ? move?.path : paths[d.id]} walk={detReplay ? (stepped && move ? move : null) : undefined} stepKey={ui.replayTurn ?? undefined}>
             <Pawn colour={d.character} />
             {activePawn(game)?.id === d.id && game.phase === "play" && <ActiveRing />}
           </Mover>
-        ),
-      )}
+        );
+      })}
+      {detReplay?.moves.map((m, i) => (
+        <PathDots key={`dm${i}`} board={board} from={m.from} path={m.path} colour={pawnHex(game, m.pawn)} />
+      ))}
       {ix.pawnGhost && (() => {
         const d = game.detectives.find((x) => x.id === ix.pawnGhost!.pawn);
         return d ? (
@@ -180,7 +197,7 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
       {/* the thief */}
       {replayStep && <PathDots board={board} from={replayStep.from} path={replayStep.path} colour="#ff6b81" />}
       {thiefShown !== null && (game.thief.revealed || iAmThief || game.phase === "roundOver") && (
-        <Mover board={board} cell={thiefShown} path={replay ? replayStep?.path : escapedTo !== null ? [escapedTo] : thiefPath} stepMs={escapedTo !== null ? 380 : 150} hop={escapedTo !== null ? 0.6 : 0.22}>
+        <Mover board={board} cell={thiefShown} walk={replay ? (stepped && replayStep ? replayStep : null) : undefined} stepKey={ui.replayTurn ?? undefined} path={replay ? replayStep?.path : escapedTo !== null ? [escapedTo] : thiefPath} stepMs={escapedTo !== null ? 380 : 150} hop={escapedTo !== null ? 0.6 : 0.22}>
           {game.thief.revealed || game.phase === "roundOver" ? (
             <PopIn>
               <ThiefPawn haul={game.thief.haul} />
