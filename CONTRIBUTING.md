@@ -59,7 +59,7 @@ Before reporting a bug or opening a pull request, check that `npm run typecheck`
 - The game is an unofficial, fan-made adaptation. Don't add artwork, rules text, logos, or other
   material from the original board game. Keep the existing disclaimer in place.
 - Only add art, music, or sound effects whose license allows redistribution in this repository,
-  and document the source in the [README](README.md#credits--legal).
+  and document the source in the [README](README.md#credits).
 
 ## Forks
 
