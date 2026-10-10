@@ -24,6 +24,7 @@ type Page = "boot" | "press" | "name" | "main" | "online" | "join" | "invite" | 
 
 const SPLASH_KEY = "sneak:splash";
 const VERSION = import.meta.env.VITE_APP_VERSION ?? "0.1.0";
+const COMMIT = import.meta.env.VITE_APP_COMMIT ?? "unknown";
 
 function firstPage(): Page {
   try {
@@ -92,7 +93,7 @@ export function Title() {
       {page !== "boot" && (
         <footer className="title-foot">
           <VolumeControl className="ghost" placement="up" align="start" />
-          <span>v{VERSION}</span>
+          <span title={`Build ${COMMIT}`}>v{VERSION} · {COMMIT}</span>
           <span className="faint">An original caper · not affiliated with any board-game publisher</span>
         </footer>
       )}
