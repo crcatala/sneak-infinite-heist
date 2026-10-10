@@ -532,7 +532,7 @@ function RulesSheet({ isHost, onClose }: { isHost: boolean; onClose: () => void 
             <Rule name="Stay put on a 1" help="Designers disagreed! When on, a detective who rolls a 1 may stay where they are.">
               <Seg isHost={isHost} value={r.detectiveMayStay} options={[[false, "Must move"], [true, "May stay"]]} onPick={(detectiveMayStay) => set({ t: "settings", patch: { rules: { detectiveMayStay } } })} />
             </Rule>
-            <Rule name="Detective aids" help="Team suspect marks (right-click / long-press a space), or marks plus an automatic 'where could the thief be?' overlay.">
+            <Rule name="Detective aids" help="Team suspect marks (Shift + right-click a space), or marks plus an automatic 'where could the thief be?' overlay.">
               <Seg isHost={isHost} value={r.assist} options={[["off", "Off"], ["marks", "Marks"], ["overlay", "Marks + overlay"]]} onPick={(assist) => set({ t: "settings", patch: { rules: { assist } } })} />
             </Rule>
             <Rule name="Turn timer" help="When time runs out, a bot finishes the turn. The clock pauses if that player drops out.">

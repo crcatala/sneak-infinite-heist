@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { ClientMessage, RoomView } from "../shared/protocol";
+import { PIN_LIFETIME_MS, placePin, type Pin } from "./game/pins";
 
 export type ConnStatus = "idle" | "connecting" | "open" | "reconnecting" | "failed" | "claim";
 
@@ -40,6 +41,7 @@ interface Store {
   clockOffset: number;
   toasts: Toast[];
   emotes: Emote[];
+  pins: Pin[];
   debug: DebugState;
   sendImpl: (msg: ClientMessage) => void;
 
@@ -48,6 +50,7 @@ interface Store {
   dismissToast: (id: number) => void;
   setDebug: (d: Partial<DebugState>) => void;
   showEmote: (by: string, emote: string) => void;
+  showPin: (by: string, x: number, y: number) => void;
 }
 
 let nextId = 1;
@@ -61,6 +64,7 @@ export const useStore = create<Store>((set, get) => ({
   clockOffset: 0,
   toasts: [],
   emotes: [],
+  pins: [],
   debug: { open: false, slowMotion: false, msgIn: 0, msgOut: 0, bytesIn: 0 },
   sendImpl: () => {},
 
@@ -79,6 +83,14 @@ export const useStore = create<Store>((set, get) => ({
     const id = nextId++;
     set((s) => ({ emotes: [...s.emotes.slice(-5), { id, by, emote }] }));
     setTimeout(() => set((s) => ({ emotes: s.emotes.filter((e) => e.id !== id) })), 2600);
+  },
+  showPin: (by, x, y) => {
+    const id = nextId++;
+    const now = performance.now();
+    const pins = placePin(get().pins, { id, by, x, y }, now);
+    set({ pins });
+    // The scene fades pins by the clock; this just drops them from memory once they're gone.
+    setTimeout(() => set((s) => ({ pins: s.pins.filter((p) => p.until > performance.now()) })), PIN_LIFETIME_MS + 100);
   },
 }));
 

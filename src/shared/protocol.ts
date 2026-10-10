@@ -55,6 +55,8 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("sit") }),
   z.object({ t: z.literal("botTakeover"), playerId: id, on: z.boolean() }),
   z.object({ t: z.literal("emote"), emote: z.enum(EMOTES) }),
+  /** A detective's pointer pin, in board-grid units (a cell's centre is a whole number). */
+  z.object({ t: z.literal("pin"), x: z.number().min(-1).max(100), y: z.number().min(-1).max(100) }),
   z.object({
     t: z.literal("debug"),
     cmd: z.enum(DEBUG_COMMANDS),
@@ -123,6 +125,8 @@ export type ServerMessage =
   | { t: "closed"; code: number; message: string }
   | { t: "state"; view: RoomView }
   | { t: "emote"; by: string; emote: string }
+  /** A detective's pointer pin (only detectives place them; everyone in the room sees them). */
+  | { t: "pin"; by: string; x: number; y: number }
   | { t: "error"; message: string }
   | { t: "pong" };
 

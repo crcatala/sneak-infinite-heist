@@ -196,7 +196,7 @@ function Chapter({ id }: { id: ChapterId }) {
               </ul>
             </li>
           </ol>
-          <p className="muted">Every answer (even "no") shrinks where the thief can be. Use suspect marks (right-click or long-press a space) or the possible-location overlay if the host allows it.</p>
+          <p className="muted">Every answer (even "no") shrinks where the thief can be. Use suspect marks (Shift + right-click a space) or the possible-location overlay if the host allows it.</p>
         </>
       );
     case "gadgets":
@@ -234,7 +234,8 @@ function Chapter({ id }: { id: ChapterId }) {
           <h2>Controls</h2>
           <div className="howto-keys">
             <Key k="Click / tap" v="Pick a space, plinth, piece or option" />
-            <Key k="Right-click / long-press" v="Suspect mark (detectives) · remove a piece (setup)" />
+            <Key k="Right-click / long-press" v="Point out a spot with a pin (detectives; everyone sees it) · remove a piece (setup)" />
+            <Key k="Shift + right-click" v="Suspect mark (detectives). On touch, use the Pin / Mark switch." />
             <Key k="Drag · pinch · two fingers" v="Rotate · zoom · pan the camera" />
             <Key k="1 · 2 / T · F" v="Overview · top-down · focus on my pawn" />
             <Key k="Arrows + Enter" v="Move the board cursor and select" />

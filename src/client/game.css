@@ -153,15 +153,75 @@
   flex: 1;
   min-width: 200px;
 }
-.hover-reason {
-  margin: 0;
-  padding: 6px 12px;
-  border-radius: 10px;
-  background: rgba(255, 77, 109, 0.15);
-  border: 1px solid rgba(255, 77, 109, 0.5);
-  color: var(--alarm-400);
+/* "Can't do that" bubble that tails the pointer over an illegal target. */
+.cursor-tip-anchor {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 70;
+  pointer-events: none;
+  will-change: transform;
+}
+.cursor-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(320px, 70vw);
+  padding: 6px 14px 6px 6px;
+  border-radius: 22px;
+  background: var(--night-950);
+  border: 2px solid var(--alarm-500);
+  /* Solid lip like the buttons, plus a coral halo so it reads over the lit floor and dark fog alike. */
+  box-shadow: 0 4px 0 var(--alarm-700), 0 0 0 4px rgba(255, 77, 109, 0.22), 0 12px 28px rgba(0, 0, 0, 0.55);
+  color: var(--moon-50);
+  font-family: var(--f-head);
+  font-weight: 600;
   font-size: var(--t-small);
-  font-weight: 700;
+  line-height: 1.2;
+  transform-origin: 0 0;
+  animation: tip-in var(--d-ui) var(--e-pop) both;
+}
+.cursor-tip[data-state="out"] {
+  animation: tip-out 140ms ease-in both;
+}
+.cursor-tip-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--alarm-500);
+  color: #fff;
+  animation: tip-nope 420ms ease-out 90ms both;
+}
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.6);
+  }
+}
+@keyframes tip-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.85);
+  }
+}
+/* A little "uh-uh" head-shake on the icon as the bubble lands. */
+@keyframes tip-nope {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-16deg);
+  }
+  55% {
+    transform: rotate(12deg);
+  }
+  80% {
+    transform: rotate(-6deg);
+  }
 }
 .watching .dots {
   display: inline-flex;
@@ -1336,6 +1396,18 @@
   gap: 4px;
   align-items: center;
 }
+.pointer-toggle {
+  position: absolute;
+  right: 10px;
+  bottom: calc(max(12px, env(safe-area-inset-bottom)) + 46px);
+  z-index: 13;
+}
+.pointer-toggle.on {
+  border-color: var(--lamp-400);
+}
+.has-pointer-toggle .emote-float {
+  bottom: 112px;
+}
 .emote-btn {
   width: 38px;
   height: 38px;
@@ -1470,9 +1542,17 @@
     bottom: auto;
     top: 206px;
   }
-  .emote-float {
+  .pointer-toggle {
+    bottom: auto;
+    top: 252px;
+  }
+  .emote-float,
+  .has-pointer-toggle .emote-float {
     bottom: auto;
     top: 250px;
+  }
+  .has-pointer-toggle .emote-float {
+    top: 296px;
   }
 }
 

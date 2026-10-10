@@ -195,6 +195,29 @@ export function discTexture(label: string, fg = "#1b1834", bg = "#ffffff"): THRE
   return finish(key, c);
 }
 
+/** A small rounded name tag in a detective's colour (floats over their pointer pins). */
+export function tagTexture(label: string, bg: string, fg = "#07061a"): THREE.Texture {
+  const key = `tag:${label}:${bg}:${fg}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const W = 256;
+  const H = 80;
+  const [c, ctx] = canvas(W, H);
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.roundRect(4, 4, W - 8, H - 8, (H - 8) / 2);
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(7, 6, 26, 0.55)";
+  ctx.stroke();
+  ctx.fillStyle = fg;
+  ctx.font = `700 ${H * 0.5}px Fredoka, Nunito, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, W / 2, H / 2 + 3, W - 36);
+  return finish(key, c);
+}
+
 /** The power switch's floor plate: hazard-striped border around a bolt (mint when the power is on, alarm red when cut). */
 export function powerPlateTexture(on: boolean): THREE.Texture {
   const key = `powerPlate:${on}`;

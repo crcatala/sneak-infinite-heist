@@ -68,6 +68,7 @@ function deliver(msg: ClientMessage) {
 function receive(msg: ServerMessage) {
   if (msg.t === "error") useStore.getState().toast(msg.message, "error");
   if (msg.t === "emote") useStore.getState().showEmote(msg.by, msg.emote);
+  if (msg.t === "pin") useStore.getState().showPin(msg.by, msg.x, msg.y);
 }
 
 function publish() {

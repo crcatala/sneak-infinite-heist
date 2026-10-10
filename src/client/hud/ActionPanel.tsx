@@ -67,7 +67,6 @@ export function ActionPanel({ view, game, ix }: { view: RoomView; game: GameView
   return (
     <section className={`action-panel panel glass${m.kind === "detAct" ? " wide" : ""}`} data-hud="band" aria-label="Your actions">
       {body}
-      {ix.hoverReason && <p className="hover-reason">{ix.hoverReason}</p>}
     </section>
   );
 }

@@ -5,8 +5,9 @@ import { useEffect, useRef } from "react";
 import { cellOf, getBoard, xyOf } from "../../shared/board/model";
 import { ActionPanel } from "../hud/ActionPanel";
 import { Announcer } from "../hud/Announcer";
+import { CursorTip } from "../hud/CursorTip";
 import { DiceTray } from "../hud/DiceTray";
-import { BannerLayer, EmoteBar, LogPanel, MotionPrompt } from "../hud/Panels";
+import { BannerLayer, EmoteBar, LogPanel, MotionPrompt, PointerToggle, showsPointerToggle } from "../hud/Panels";
 import { PauseMenu, RoundOver } from "../hud/RoundOver";
 import { ThiefPad } from "../hud/ThiefPad";
 import { TurnBar } from "../hud/TurnBar";
@@ -62,18 +63,21 @@ export function Game() {
   useKeys();
   useHudWatch();
 
+  const pointerToggle = showsPointerToggle(view, game);
   return (
-    <div className={`screen game-screen role-${view.role ?? "spectator"}${game.power.cut ? " dark" : ""}`}>
+    <div className={`screen game-screen role-${view.role ?? "spectator"}${game.power.cut ? " dark" : ""}${pointerToggle ? " has-pointer-toggle" : ""}`}>
       <GameScene view={view} game={game} ix={ix} />
       <TurnBar view={view} game={game} />
       {view.role === "thief" && game.phase !== "roundOver" && <ThiefPad game={game} />}
       <LogPanel view={view} game={game} />
       {!showResult && <ActionPanel view={view} game={game} ix={ix} />}
       <DiceTray />
+      <CursorTip reason={showResult ? null : ix.hoverReason} />
       <Announcer active={game.phase === "play" || game.phase === "roundOver"} />
       <BannerLayer />
       <MotionPrompt view={view} game={game} />
       {game.phase === "roundOver" && showResult && <RoundOver view={view} game={game} />}
+      {pointerToggle && <PointerToggle />}
       <EmoteBar view={view} />
       <PauseMenu view={view} />
       {view.role === "spectator" && <div className="peek-badge watching-badge">👀 Watching: public information only</div>}

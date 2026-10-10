@@ -4,7 +4,7 @@ import { thiefDestinations } from "../src/shared/board/paths";
 import { MOTION_RESPONSE_MS } from "../src/shared/game/config";
 import type { GameState } from "../src/shared/game/state";
 import type { ClientMessage } from "../src/shared/protocol";
-import { BOT_SETUP_MS, BOT_THINK_MS, createRoomState, Room, SeatClaimNeeded, type RoomDeps } from "../src/shared/room";
+import { BOT_SETUP_MS, BOT_THINK_MS, createRoomState, PIN_COOLDOWN_MS, Room, SeatClaimNeeded, type RoomDeps } from "../src/shared/room";
 import { mulberry32 } from "../src/shared/rng";
 
 function testDeps(seed = 1, cheats = false): RoomDeps & { advance(ms: number): void } {
@@ -393,6 +393,49 @@ describe("debug and cheats", () => {
     expect(send(room, a.playerId, { t: "emote", emote: "👀" }).outbound).toHaveLength(0);
     deps.advance(2000);
     expect(send(room, a.playerId, { t: "emote", emote: "🚨" }).outbound).toHaveLength(2);
+  });
+});
+
+describe("pointer pins", () => {
+  /** Three humans in a game: the thief is whoever the host picks, the other two are detectives. */
+  function pinGame() {
+    const { room, deps } = newRoom(3);
+    const ids = ["A", "B", "C"].map((name) => room.join({ name }).playerId);
+    send(room, ids[0], { t: "settings", patch: { thiefSelection: "host" } } as ClientMessage);
+    send(room, ids[0], { t: "setThief", playerId: ids[2] });
+    for (const id of ids) send(room, id, { t: "setReady", ready: true });
+    return { room, deps, detective: ids[0], mate: ids[1], thief: ids[2] };
+  }
+
+  it("is public table talk: it goes to the sender and everyone else, thief included", () => {
+    const { room, detective } = pinGame();
+    const res = send(room, detective, { t: "pin", x: 3.25, y: 4.75 });
+    const msg = { t: "pin", by: detective, x: 3.25, y: 4.75 };
+    expect(res.outbound).toEqual([{ to: "others", msg }, { to: "self", msg }]);
+  });
+
+  it("is for detectives only", () => {
+    const { room, thief } = pinGame();
+    expect(errorOf(send(room, thief, { t: "pin", x: 3, y: 4 }))).toMatch(/Only detectives/);
+    const watcher = room.join({ name: "W", spectate: true }).playerId;
+    expect(errorOf(send(room, watcher, { t: "pin", x: 3, y: 4 }))).toMatch(/watching/);
+  });
+
+  it("ignores pins off the board and bad coordinates", () => {
+    const { room, detective } = pinGame();
+    const { width, height } = getBoard(game(room).board);
+    expect(send(room, detective, { t: "pin", x: width, y: 2 }).outbound).toHaveLength(0);
+    expect(send(room, detective, { t: "pin", x: 2, y: -0.9 }).outbound).toHaveLength(0);
+    expect(send(room, detective, { t: "pin", x: width - 0.5, y: height - 0.5 }).outbound).toHaveLength(2);
+    expect(send(room, detective, { t: "pin", x: Number.NaN, y: 0 }).outbound).toHaveLength(0);
+  });
+
+  it("allows quick successive pins but throttles floods", () => {
+    const { room, deps, detective } = pinGame();
+    expect(send(room, detective, { t: "pin", x: 3, y: 4 }).outbound).toHaveLength(2);
+    expect(send(room, detective, { t: "pin", x: 3.5, y: 4 }).outbound).toHaveLength(0);
+    deps.advance(PIN_COOLDOWN_MS);
+    expect(send(room, detective, { t: "pin", x: 4, y: 4 }).outbound).toHaveLength(2);
   });
 });
 

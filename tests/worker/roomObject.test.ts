@@ -52,6 +52,34 @@ function playerId(ws: FakeSocket): string {
   return welcome.you;
 }
 
+describe("pointer pins on the Durable Object", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_800_000_000_000);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("reaches every socket in the room, the thief's and a spectator's included", async () => {
+    const { join, send } = await openRoom();
+    const host = await join({ name: "Host" });
+    const mate = await join({ name: "Mate" });
+    const thief = await join({ name: "Thief" });
+    await send(host, { t: "settings", patch: { thiefSelection: "host" } });
+    await send(host, { t: "setThief", playerId: playerId(thief) });
+    for (const ws of [host, mate, thief]) await send(ws, { t: "setReady", ready: true });
+    const watcher = await join({ name: "Watcher", spectate: "1" });
+
+    await send(host, { t: "pin", x: 3.25, y: 4.75 });
+
+    const pins = (ws: FakeSocket) => received(ws).filter((m) => m.t === "pin");
+    const pin = { t: "pin", by: playerId(host), x: 3.25, y: 4.75 };
+    expect(pins(host)).toEqual([pin]);
+    expect(pins(mate)).toEqual([pin]);
+    expect(pins(thief)).toEqual([pin]);
+    expect(pins(watcher)).toEqual([pin]);
+  });
+});
+
 describe("room presence on the Durable Object", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
