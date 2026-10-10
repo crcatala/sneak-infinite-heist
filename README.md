@@ -79,8 +79,8 @@ management and the kill switch.
 ## How to play
 
 Each round, the thief moves after every detective turn. The detectives roll a movement die and an action die (Eye,
-Scan or Motion) to look for the thief, disable cameras, and cut the power. The thief wins by escaping through an
-unlocked exit with enough paintings. The detectives win by catching them.
+Scan or Motion) to look for the thief along sightlines and cameras. The thief can secretly disable cameras or cut the
+power. The thief wins by escaping through an unlocked exit with enough paintings. The detectives win by catching them.
 
 The full rules, controls, and lobby settings are in the [Gameplay guide](docs/gameplay.md).
 
@@ -128,10 +128,12 @@ friends.
 - No artwork, rules text, logos, characters or other assets from the original game are used. The 3D models and
   textures, and the nine paintings, are original and made in code for this project.
 - **Music** (`public/audio/music`) was generated with [Suno](https://suno.com) on a paid plan. It isn't covered by this
-  project's MIT license and stays under Suno's terms, so check them before reusing a track.
+  project's MIT license. Reusing or redistributing these tracks is governed by Suno's terms for the plan they were made
+  on, so check those terms first. Forks that want MIT-only assets can delete `public/audio/music` or generate their own.
   `node scripts/normalize-music.mjs <dir>` rebuilds the level-matched MP3s from raw exports.
 - **Sound effects** (`public/audio/sfx`) were generated with [ElevenLabs](https://elevenlabs.io) on a paid plan, from
-  text prompts. They keep ElevenLabs' terms for paid-plan output.
+  text prompts. They aren't covered by the MIT license either. Reuse is governed by ElevenLabs' terms for the plan they
+  were made on, so check those terms first, or replace them with your own.
 - **Detective and thief portraits** (`public/art/detectives`) are original illustrations generated with OpenAI's image
   model from the prompts in [docs/ART.md](docs/ART.md).
 - **Fonts:** Bungee, Fredoka, Nunito and Caveat, all under the SIL Open Font License, served by Google Fonts.
