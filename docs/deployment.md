@@ -113,9 +113,14 @@ Sneak! Infinite Heist is built to stay inside Cloudflare's free Workers plan:
   Durable Object. Creating rooms needs an invite, and each invite is limited (see above).
 - **Flood control** (`src/shared/rateLimit.ts`) caps every room at 8 messages/s and 1 state change/s
   sustained (state changes are what cost storage writes), and each socket at 3 messages/s over the long run.
-  Extra messages are dropped with a "slow down" notice; a socket that keeps going is closed, and that player
-  can't rejoin for a minute. People never get near these limits: the fastest legitimate sender is a detective
-  placing pins, throttled to 5 a second by the room itself.
+  Every message is charged before it is read, so unparseable or oversized junk counts too. Extra messages are
+  dropped with a "slow down" notice; a socket that keeps going is closed, and that player (whether it rejoins
+  with its player id or by claiming a seat) can't rejoin for a minute. The budgets and penalties survive the room
+  being evicted from memory: while anyone is being throttled the room saves a small snapshot, at most every 2
+  seconds. Normal play never writes one.
+  The limits sit above realistic play: three detectives pinning twice a second each, plus emotes, never get a
+  single drop. The room's own cooldowns would allow 5 pins a second, which nobody keeps up for minutes; at that
+  rate the long-term limit (3 messages a second per socket) throttles it, and it is never closed for it.
 
 **The gotcha:** when any Durable Object free-tier daily limit is exceeded, Durable Object calls fail for the
 **whole account** until the daily reset (00:00 UTC). Every room stops working, not just the busy one. The
@@ -130,8 +135,14 @@ The flood limits put a ceiling on what a single room can cost, even if someone h
 | Free daily limit | One room-hour, worst case | Why |
 |---|---|---|
 | Duration, 13,000 GB-s | about 450 GB-s | one Durable Object kept awake for an hour |
-| Storage writes, 100k rows | about 3,600 + bursts | 1 state change/s |
+| Storage writes, 100k rows | about 16,000 + bursts | 1 state change/s, each costing up to 4 rows (see below) |
 | Requests, 100k | about 1,440 for messages handled | 8 messages/s ÷ 20 (WebSocket messages bill 20:1) |
+
+One accepted state change can write several rows: the room state, the alarm when a deadline moved, the "last
+pushed summary" marker and the invite's room ledger (in another Durable Object, but on the same account). That is
+up to 4 per change, so 3,600 × 4, plus up to 1,800 for flood snapshots (only while someone is being throttled,
+at most one per 2 seconds) and about 60 for presence alarms. A room flooded at its limits therefore uses roughly
+16% of the day's row allowance per hour, so about 6 flooded room-hours would use it up.
 
 Duration is the one firm ceiling: it's wall-clock time, so a room awake for an hour costs the same however
 hard it's flooded, and roughly 28 room-hours awake in a day would use it up. The other two rows count only

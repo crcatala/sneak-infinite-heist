@@ -212,8 +212,10 @@ while solo keeps working (it runs in the browser).
   minutes.
 - **Bad links never reach a room.** Room codes are signed, so the Worker rejects made-up codes without waking a
   Durable Object. Creating rooms needs an invite, and each invite creates at most 10 rooms per 24 hours and keeps 25.
-- **Every room is rate limited.** A room handles at most 8 messages/s and saves at most 1 change/s sustained, and a
-  socket that keeps flooding is disconnected for a minute. That puts a ceiling on what any one room can cost.
+- **Every room is rate limited.** A room handles at most 8 messages/s and accepts at most 1 state change/s sustained
+  (junk messages count too), and a socket that keeps flooding is disconnected for a minute. That puts a ceiling on
+  what any one room can cost: roughly 16,000 storage rows per flooded room-hour, since one change can write several
+  rows.
 
 > On the free plan, limits are hard caps, not bills. If any daily Durable Object limit, or the Workers request
 > limit, is exceeded, every online room on your account stops working until the reset at 00:00 UTC. Solo keeps
