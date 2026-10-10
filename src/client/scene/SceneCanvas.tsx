@@ -42,11 +42,13 @@ export function NightLights({ mood = "night", shadowSize = 16 }: { mood?: LightM
   const t = useRef(0);
   const { invalidate } = useThree();
 
-  const targets: Record<LightMood, { sky: string; ground: string; hemi: number; moon: number; moonColour: string; rim: number; rimColour: string }> = {
-    night: { sky: "#7f96e6", ground: "#241c48", hemi: 1.15, moon: 1.6, moonColour: "#c8d6ff", rim: 0, rimColour: "#ff4d6d" },
-    emergency: { sky: "#5a1030", ground: "#1a0610", hemi: 0.5, moon: 0.35, moonColour: "#ff8090", rim: 6, rimColour: "#ff3355" },
-    chase: { sky: "#8a96e6", ground: "#2a1c48", hemi: 1.1, moon: 1.5, moonColour: "#d8e0ff", rim: 4, rimColour: "#ff4d6d" },
-    dawn: { sky: "#ffc8a0", ground: "#5a3a48", hemi: 1.6, moon: 2.2, moonColour: "#ffe0b8", rim: 0, rimColour: "#ffb070" },
+  // Emergency stays close to neutral: light colour multiplies surface colour, so a saturated red sky would
+  // crush every room to maroon. The red comes from the pulsing rim, the fog and the screen-edge vignette.
+  const targets: Record<LightMood, { sky: string; ground: string; hemi: number; moon: number; moonColour: string; rim: number; rimColour: string; fog: string }> = {
+    night: { sky: "#7f96e6", ground: "#241c48", hemi: 1.15, moon: 1.6, moonColour: "#c8d6ff", rim: 0, rimColour: "#ff4d6d", fog: "#0e0c24" },
+    emergency: { sky: "#9a86b8", ground: "#3a1c38", hemi: 0.85, moon: 0.9, moonColour: "#ffc0c8", rim: 3, rimColour: "#ff3355", fog: "#2a0a16" },
+    chase: { sky: "#8a96e6", ground: "#2a1c48", hemi: 1.1, moon: 1.5, moonColour: "#d8e0ff", rim: 4, rimColour: "#ff4d6d", fog: "#0e0c24" },
+    dawn: { sky: "#ffc8a0", ground: "#5a3a48", hemi: 1.6, moon: 2.2, moonColour: "#ffe0b8", rim: 0, rimColour: "#ffb070", fog: "#0e0c24" },
   };
 
   useEffect(() => invalidate(), [mood, invalidate]);
@@ -71,9 +73,10 @@ export function NightLights({ mood = "night", shadowSize = 16 }: { mood?: LightM
       if (Math.abs(moon.current.intensity - want.moon) > 0.01) moving = true;
       moon.current.intensity += (want.moon - moon.current.intensity) * k;
     }
+    if (scene.fog) lerpColour(scene.fog.color, want.fog);
     if (rim.current) {
       t.current += dt;
-      const pulse = mood === "chase" || mood === "emergency" ? 0.65 + 0.35 * Math.sin(t.current * (mood === "chase" ? 7 : 2.5)) : 1;
+      const pulse = mood === "chase" ? 0.65 + 0.35 * Math.sin(t.current * 7) : mood === "emergency" ? 0.8 + 0.2 * Math.sin(t.current * 2.5) : 1;
       lerpColour(rim.current.color, want.rimColour);
       rim.current.intensity += (want.rim * pulse - rim.current.intensity) * k;
       if (want.rim > 0) moving = true;
