@@ -254,7 +254,7 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
       case "thiefEntry": {
         const hovered = ui.hoverSlot ? board.slotById[ui.hoverSlot] : null;
         for (const s of board.slots) tiles.push({ cell: s.inside, colour: COLOURS.reach, alpha: hovered?.id === s.id ? 0.7 : 0.3, style: 2, pulse: !hovered });
-        if (hovered) for (const c of thiefEnds(game, hovered.inside).keys()) tiles.push({ cell: c, colour: COLOURS.reach, alpha: 0.18 });
+        if (hovered) for (const c of thiefEnds(game, hovered.inside).keys()) tiles.push({ cell: c, colour: COLOURS.reach, alpha: 0.5, style: 5 });
         click = (cell) => {
           const slot = board.slots.find((s) => s.cell === cell || s.inside === cell);
           if (!slot) return refuse("Pick one of the 11 windows or doors (the padlock plinths) to sneak in.");
@@ -266,7 +266,7 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
       case "thiefMove": {
         const ends = thiefEnds(game, mode.start);
         ghosts.push(mode.start);
-        for (const c of ends.keys()) tiles.push({ cell: c, colour: COLOURS.reach, alpha: ui.plan.dest === c ? 0.8 : 0.42, lift: 0.004 });
+        for (const c of ends.keys()) tiles.push({ cell: c, colour: COLOURS.reach, alpha: ui.plan.dest === c ? 0.8 : 0.85, style: ui.plan.dest === c ? 0 : 5, lift: 0.004 });
         // A legal move that ends in view: heavier brackets over the amber, so "I can go there, but I'd be seen" reads at a glance.
         if (ui.danger && game.phase === "play") {
           const watched = dangerCells(game);
@@ -322,7 +322,7 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
         if (mode.canMove) {
           const ends = detectiveEnds(game, pawn, turn.roll!.move);
           for (const [c, n] of ends) {
-            tiles.push({ cell: c, colour: COLOURS.reach, alpha: ui.moveDest === c ? 0.75 : 0.26 });
+            tiles.push({ cell: c, colour: COLOURS.reach, alpha: ui.moveDest === c ? 0.75 : 0.8, style: ui.moveDest === c ? 0 : 5 });
             if (ends.size < 60 || c === hover) badges.push({ cell: c, n });
           }
           if (ui.moveDest !== null) pawnGhost = { pawn: pawn.id, cell: ui.moveDest };
