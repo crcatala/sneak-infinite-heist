@@ -12,8 +12,8 @@ export interface Tile {
   cell: Cell;
   colour: string;
   alpha: number;
-  /** 0 = filled, 1 = hatched, 2 = ring (outline only), 3 = corner brackets (danger), 4 = thick corner brackets, 5 = pip (legal move). */
-  style?: 0 | 1 | 2 | 3 | 4 | 5;
+  /** 0 = filled, 1 = hatched, 2 = ring (outline only), 3 = corner brackets (danger), 4 = thick corner brackets, 5 = dashed outline (legal move), 6 = dashed outline with gaps for thick brackets (legal move in danger). */
+  style?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   /** Pulses gently. */
   pulse?: boolean;
   lift?: number;
@@ -43,10 +43,19 @@ const frag = /* glsl */ `
     float edge = max(d.x, d.y);
     float a = vInfo.x;
     if (vInfo.y > 4.5) {
-      // pip (legal move): a soft centred disc plus a barely-there tint, so the room colour still shows around it and
-      // the corner brackets (danger) never collide with it.
-      float r = length(d);
-      a *= max(1.0 - smoothstep(0.55, 0.68, r), 0.1) * (1.0 - smoothstep(0.93, 1.0, edge));
+      // dashed outline (legal move): a thin inset square broken into dashes along each side. The fill stays empty so
+      // the room colour shows through. Where the danger brackets share the cell, style 6 leaves gaps for them.
+      float onLeftRight = step(d.y, d.x);
+      float t = mix(vUv.x, vUv.y, onLeftRight);
+      float dash = step(0.45, fract(t * 5.0));
+      float band = smoothstep(0.7, 0.75, edge) * (1.0 - smoothstep(0.82, 0.87, edge));
+      a *= band * dash;
+      // 6 = the same dash on a legal move that's also in danger view: no dash where the thick corner brackets (style 4) sit.
+      if (vInfo.y > 5.5) {
+        float onX = step(0.66, d.x) * step(0.4, d.y);
+        float onY = step(0.66, d.y) * step(0.4, d.x);
+        a *= 1.0 - max(onX, onY);
+      }
     } else if (vInfo.y > 2.5) {
       // corner brackets (danger): only the cell's corners are drawn, so the floor colour stays readable.
       // 3 = thin, 4 = thick (used where a danger cell is also a legal move).
@@ -135,7 +144,7 @@ export function TileLayer({ board, tiles, y = FLOOR_Y + 0.012 }: { board: Board;
 export function NumberBadge({ board, cell, n, colour = "#ffc14d" }: { board: Board; cell: Cell; n: number | string; colour?: string }) {
   const [x, z] = cellXZ(board, cell);
   return (
-    <sprite position={[x, FLOOR_Y + 0.28, z]} scale={[0.34, 0.34, 1]} renderOrder={5}>
+    <sprite position={[x, FLOOR_Y + 0.28, z]} scale={[0.42, 0.42, 1]} renderOrder={5}>
       <spriteMaterial map={discTexture(String(n), "#07061a", colour)} depthTest={false} transparent />
     </sprite>
   );

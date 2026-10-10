@@ -186,7 +186,7 @@ when something is revealed.
   | Action die | White with Eye, S-camera and M faces |
 
 - **Overlays:**
-  - Reachable cells are gold pips (the selected destination fills the tile), sightlines are cool cyan beams, the danger overlay is coral corner brackets (heavier on a legal move that ends in view), and the
+  - Reachable cells get a dashed outline in the mover's colour, a shade darker (the thief's are gold; a detective's are their pawn colour). The selected destination fills the tile, and a detective's step count shows only on hover or the selected destination. The route to the focused destination is a row of dots in the same colour. Sightlines are cool cyan beams, the danger overlay is coral corner brackets (heavier on a legal move that ends in view), and the
     possible-location heat overlay is violet.
   - Every overlay also carries a pattern or number so it doesn't rely on colour.
 
