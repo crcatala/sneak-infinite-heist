@@ -51,6 +51,8 @@ export const RATE_LIMITS = {
   penaltyMs: 60_000,
   /** A throttled socket hears "slow down" at most this often. */
   noticeMs: 5000,
+  /** The room saves its flood snapshot while any bucket is below this fraction of its capacity (and on every drop). */
+  saveBelow: 0.5,
 };
 
 export type FloodVerdict = "ok" | "drop" | "close";
@@ -132,9 +134,9 @@ export class FloodControl {
   /** True when someone is close enough to a limit that the room should save a snapshot. */
   pressured(now: number): boolean {
     for (const until of this.penalties.values()) if (until > now) return true;
-    if (this.messages.level(now) < RATE_LIMITS.roomMessages.capacity / 2) return true;
-    if (this.writes.level(now) < RATE_LIMITS.roomWrites.capacity / 2) return true;
-    for (const s of this.sockets.values()) if (s.sustained.level(now) < RATE_LIMITS.socketSustained.capacity / 2) return true;
+    if (this.messages.level(now) < RATE_LIMITS.roomMessages.capacity * RATE_LIMITS.saveBelow) return true;
+    if (this.writes.level(now) < RATE_LIMITS.roomWrites.capacity * RATE_LIMITS.saveBelow) return true;
+    for (const s of this.sockets.values()) if (s.sustained.level(now) < RATE_LIMITS.socketSustained.capacity * RATE_LIMITS.saveBelow) return true;
     return false;
   }
 
