@@ -342,7 +342,8 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
           for (const [c, n] of ends) {
             const selected = ui.moveDest === c;
             tiles.push({ cell: c, colour: selected ? owner : legalOutline(owner), alpha: selected ? 0.75 : 0.85, style: selected ? 0 : 5 });
-            if (c === hover || c === ui.moveDest) badges.push({ cell: c, n, colour: owner });
+            // A stay (0 steps, on the pawn's own cell) gets no count: it's redundant.
+            if ((c === hover || c === ui.moveDest) && n > 0) badges.push({ cell: c, n, colour: owner });
           }
           if (focus !== null && focus !== pawn.cell && ends.has(focus)) path = { from: pawn.cell!, path: shortestPath(board, pawn.cell!, focus), colour: owner };
           if (ui.moveDest !== null) pawnGhost = { pawn: pawn.id, cell: ui.moveDest };
