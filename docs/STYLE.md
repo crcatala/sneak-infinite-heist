@@ -298,3 +298,18 @@ when something is revealed.
   destination, arming the Eye or hovering a camera never changes the panel's height. (The camera frames the
   board around the panel, so a panel that changed height also made the board jump.) Keep new copy short
   enough to fit two lines.
+
+## 11. App icon
+
+A square mark for the browser tab, the Apple touch icon and the README: a chunky gold **S** with a lip, wearing the
+thief's domino mask, with a small glowing coral "alarm light" in the top-right corner. It is flat shapes and pure SVG,
+in the palette above (`--night-900` tile, `--lamp-400` and `--lamp-600` S, `--alarm-500` light).
+
+| File | Use |
+|---|---|
+| `docs/images/logo.svg` | Master vector, used in the README heading |
+| `docs/images/logo-1024.png` | Full-size raster master with transparent corners, kept for any future need (social cards, stores) |
+| `public/favicon.svg` | Browser tab icon (same artwork, no fixed size) |
+| `public/apple-touch-icon.png` | 180×180, opaque square for iOS home screens |
+
+This is separate from the in-game title wordmark (`Logo.tsx`), which stays as it is.
