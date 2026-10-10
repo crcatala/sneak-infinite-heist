@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeSocket, FakeState } from "./fakeRuntime";
 import { RoomDurableObject } from "../../src/worker/roomObject";
 import type { Env } from "../../src/worker/env";
-import type { ClientMessage, ServerMessage } from "../../src/shared/protocol";
+import { CLOSE, type ClientMessage, type ServerMessage } from "../../src/shared/protocol";
+import { RATE_LIMITS } from "../../src/shared/rateLimit";
 import type { RoomState } from "../../src/shared/roomTypes";
 
 const CODE = "TESTROOM";
@@ -12,7 +13,8 @@ const MINUTE = 60 * 1000;
 async function openRoom() {
   const ctx = new FakeState();
   const env = { INVITES: { idFromName: (name: string) => name, get: () => ({ updateRoom: async () => {} }) } };
-  const room = new RoomDurableObject(ctx as unknown as DurableObjectState, env as unknown as Env);
+  const make = () => new RoomDurableObject(ctx as unknown as DurableObjectState, env as unknown as Env);
+  let room = make();
   await room.init(CODE, "test-invite");
 
   const join = async (query: Record<string, string>) => {
@@ -22,6 +24,12 @@ async function openRoom() {
     return ws;
   };
   const send = (ws: FakeSocket, msg: ClientMessage) => room.webSocketMessage(ws as unknown as WebSocket, JSON.stringify(msg));
+  const sendRaw = (ws: FakeSocket, text: string) => room.webSocketMessage(ws as unknown as WebSocket, text);
+  /** The runtime evicts an idle object and builds a new one over the same storage and sockets. */
+  const hibernate = async () => {
+    room = make();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
   const players = () => (ctx.storage.data.get("state") as RoomState).players;
 
   /** Lets time pass, firing alarms as they come due. `alive` keep heartbeating; others are silent. */
@@ -39,7 +47,7 @@ async function openRoom() {
     return wakes;
   };
 
-  return { ctx, room, join, send, players, wait };
+  return { ctx, join, send, sendRaw, players, wait, hibernate };
 }
 
 function received(ws: FakeSocket): ServerMessage[] {
@@ -145,5 +153,116 @@ describe("room presence on the Durable Object", () => {
 
     const claimed = await join({ name: "A", claim: playerId(a) });
     expect(playerId(claimed)).toBe(playerId(a));
+  });
+});
+
+describe("flood control on the Durable Object", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_800_000_000_000);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("lets a quick burst of normal actions through", async () => {
+    const { join, send } = await openRoom();
+    const host = await join({ name: "Host" });
+
+    for (let i = 0; i < 20; i++) await send(host, { t: "setReady", ready: i % 2 === 0 });
+
+    expect(host.closed).toBeNull();
+    expect(received(host).filter((m) => m.t === "error")).toEqual([]);
+  });
+
+  it("tells a flooding socket to slow down once, then closes it and holds its player out for a minute", async () => {
+    const { join, send } = await openRoom();
+    const host = await join({ name: "Host" });
+    const flooder = await join({ name: "Flooder" });
+    const { you, secret } = received(flooder).find((m) => m.t === "welcome") as Extract<ServerMessage, { t: "welcome" }>;
+
+    for (let i = 0; i < RATE_LIMITS.socket.capacity + RATE_LIMITS.floodDrops + 5; i++) await send(flooder, { t: "setReady", ready: i % 2 === 0 });
+
+    expect(received(flooder).filter((m) => m.t === "error")).toHaveLength(1);
+    expect(flooder.closed?.code).toBe(CLOSE.flood);
+    expect(received(flooder)).toContainEqual(expect.objectContaining({ t: "closed", code: CLOSE.flood }));
+    expect(host.closed).toBeNull();
+
+    // Rejoining right away is refused; after the penalty it works.
+    const refused = await join({ pid: you, secret });
+    expect(refused.closed?.code).toBe(CLOSE.flood);
+    vi.setSystemTime(Date.now() + RATE_LIMITS.penaltyMs + 1);
+    const back = await join({ pid: you, secret });
+    expect(back.closed).toBeNull();
+    expect(playerId(back)).toBe(you);
+  });
+});
+
+describe("flood control: junk, eviction and mixed identities", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_800_000_000_000);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const errors = (ws: FakeSocket) => received(ws).filter((m) => m.t === "error").length;
+
+  it("charges unparseable and oversized messages, so a junk flood is closed like any other", async () => {
+    const { join, sendRaw } = await openRoom();
+    const flooder = await join({ name: "Flooder" });
+
+    for (let i = 0; i < RATE_LIMITS.socket.capacity + RATE_LIMITS.floodDrops + 5; i++) {
+      await sendRaw(flooder, i % 3 === 0 ? "not json" : i % 3 === 1 ? JSON.stringify({ t: "nope" }) : "x".repeat(20_000));
+    }
+
+    expect(flooder.closed?.code).toBe(CLOSE.flood);
+    // Junk inside the budget is still answered, a few times, not on every message.
+    expect(errors(flooder)).toBeLessThan(40);
+  });
+
+  it("does not reset a drained budget when the object is evicted and woken", async () => {
+    const { ctx, join, send, hibernate } = await openRoom();
+    const host = await join({ name: "Host" });
+    const mate = await join({ name: "Mate" });
+
+    // Drain the room's message budget with pings, a second of simulated time at a time.
+    for (let second = 0; second < 150; second++) {
+      for (let i = 0; i < 15; i++) await send(host, { t: "ping" });
+      vi.setSystemTime(Date.now() + 1000);
+      ctx.ping(host);
+      ctx.ping(mate);
+    }
+    expect(errors(host)).toBeGreaterThan(0);
+
+    await hibernate();
+    const before = errors(mate);
+    for (let i = 0; i < 30; i++) await send(mate, { t: "ping" });
+
+    // A fresh budget would let all 30 through silently.
+    expect(errors(mate)).toBeGreaterThan(before);
+  });
+
+  it("keeps a flood penalty through eviction", async () => {
+    const { join, send, hibernate } = await openRoom();
+    await join({ name: "Host" });
+    const flooder = await join({ name: "Flooder" });
+    const { you, secret } = received(flooder).find((m) => m.t === "welcome") as Extract<ServerMessage, { t: "welcome" }>;
+    for (let i = 0; i < RATE_LIMITS.socket.capacity + RATE_LIMITS.floodDrops + 5; i++) await send(flooder, { t: "setReady", ready: i % 2 === 0 });
+    expect(flooder.closed?.code).toBe(CLOSE.flood);
+
+    await hibernate();
+    const refused = await join({ pid: you, secret });
+
+    expect(refused.closed?.code).toBe(CLOSE.flood);
+  });
+
+  it("refuses a penalized seat claimed behind a made-up pid", async () => {
+    const { join, send } = await openRoom();
+    await join({ name: "Host" });
+    const flooder = await join({ name: "Flooder" });
+    const { you } = received(flooder).find((m) => m.t === "welcome") as Extract<ServerMessage, { t: "welcome" }>;
+    for (let i = 0; i < RATE_LIMITS.socket.capacity + RATE_LIMITS.floodDrops + 5; i++) await send(flooder, { t: "setReady", ready: i % 2 === 0 });
+
+    const sneaky = await join({ pid: "made-up", claim: you });
+
+    expect(sneaky.closed?.code).toBe(CLOSE.flood);
   });
 });

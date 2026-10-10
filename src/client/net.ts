@@ -24,6 +24,7 @@ const CLOSE_MESSAGES: Record<number, string> = {
   [CLOSE.notFound]: "This room doesn't exist. Check the code?",
   [CLOSE.deleted]: "This room was deleted.",
   [CLOSE.offline]: "Online rooms are turned off right now.",
+  [CLOSE.flood]: "You were disconnected for sending too many messages. Wait a minute, then reload to rejoin.",
 };
 
 export async function roomExists(code: string): Promise<boolean> {
