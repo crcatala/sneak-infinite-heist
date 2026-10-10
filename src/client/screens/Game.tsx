@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { cellOf, getBoard, xyOf } from "../../shared/board/model";
 import { ActionPanel } from "../hud/ActionPanel";
 import { Announcer } from "../hud/Announcer";
+import { CursorTip } from "../hud/CursorTip";
 import { DiceTray } from "../hud/DiceTray";
 import { BannerLayer, EmoteBar, LogPanel, MotionPrompt, PointerToggle, showsPointerToggle } from "../hud/Panels";
 import { PauseMenu, RoundOver } from "../hud/RoundOver";
@@ -71,6 +72,7 @@ export function Game() {
       <LogPanel view={view} game={game} />
       {!showResult && <ActionPanel view={view} game={game} ix={ix} />}
       <DiceTray />
+      <CursorTip reason={showResult ? null : ix.hoverReason} />
       <Announcer active={game.phase === "play" || game.phase === "roundOver"} />
       <BannerLayer />
       <MotionPrompt view={view} game={game} />
