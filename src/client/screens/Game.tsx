@@ -67,6 +67,7 @@ export function Game() {
   return (
     <div className={`screen game-screen role-${view.role ?? "spectator"}${game.power.cut ? " dark" : ""}${pointerToggle ? " has-pointer-toggle" : ""}`}>
       <GameScene view={view} game={game} ix={ix} />
+      {game.power.cut && <div className="power-vignette" aria-hidden />}
       <TurnBar view={view} game={game} />
       {view.role === "thief" && game.phase !== "roundOver" && <ThiefPad game={game} />}
       <LogPanel view={view} game={game} />
