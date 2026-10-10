@@ -1,4 +1,4 @@
-# <img src="public/favicon.svg" alt="" width="40" height="40"> Sneak! Infinite Heist
+# <img src="docs/images/logo.svg" alt="" width="44" height="44"> Sneak! Infinite Heist
 
 [![CI](https://github.com/crcatala/sneak-infinite-heist/actions/workflows/ci.yml/badge.svg)](https://github.com/crcatala/sneak-infinite-heist/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
