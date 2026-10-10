@@ -40,7 +40,7 @@ export function NightLights({ mood = "night", shadowSize = 16 }: { mood?: LightM
   const moon = useRef<THREE.DirectionalLight>(null);
   const rim = useRef<THREE.PointLight>(null);
   const t = useRef(0);
-  const { invalidate } = useThree();
+  const { invalidate, scene } = useThree();
 
   // Emergency stays close to neutral: light colour multiplies surface colour, so a saturated red sky would
   // crush every room to maroon. The red comes from the pulsing rim, the fog and the screen-edge vignette.
