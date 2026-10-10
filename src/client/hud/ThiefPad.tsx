@@ -3,13 +3,16 @@
 // (struck through when disabled), the two "M" wire-cutter snips and the power state. Also used for
 // the round-end replay (with `upTo`).
 
-import { getBoard, xyOf, type Cell } from "../../shared/board/model";
+import { colourOf, getBoard, xyOf, type Cell } from "../../shared/board/model";
 import type { GameView } from "../../shared/game/views";
 import { Icon } from "../components/Icon";
 import { useGameUi } from "../game/uiStore";
+import { FLOOR_HEX } from "../scene/textures";
 
 const S = 20; // px per cell
 const PAD = 14;
+/** How strongly a room's floor colour washes the paper: enough to tell rooms apart, still reads as a printed pad. */
+const ROOM_WASH = 0.2;
 
 /** Detectives drawn on the pad during the round-end replay: their routes and where each one stands. */
 export interface PadDetectives {
@@ -63,7 +66,12 @@ export function PadMap({ game, upTo, showAll = true, highlight, detectives }: { 
       <rect x={PAD - 6} y={PAD - 6} width={W - PAD * 2 + 12} height={H - PAD * 2 + 12} rx="14" fill="none" stroke="#3a2e2a" strokeWidth="1.2" opacity="0.5" />
       {board.walkable.map((c) => {
         const [x, y] = xyOf(board, c);
-        return <rect key={c} x={PAD + x * S} y={PAD + y * S} width={S} height={S} fill="#fffaf0" stroke="#e3d2ae" strokeWidth="1" />;
+        return (
+          <g key={c}>
+            <rect x={PAD + x * S} y={PAD + y * S} width={S} height={S} fill="#fffaf0" />
+            <rect x={PAD + x * S} y={PAD + y * S} width={S} height={S} fill={FLOOR_HEX[colourOf(board, c)][0]} fillOpacity={ROOM_WASH} stroke="#e3d2ae" strokeWidth="1" />
+          </g>
+        );
       })}
       <path d={walls.join(" ")} stroke="#3a2e2a" strokeWidth="3.2" strokeLinecap="square" />
       {board.slots.map((s) => {
