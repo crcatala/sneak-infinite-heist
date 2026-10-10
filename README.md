@@ -154,6 +154,7 @@ src/
     protocol.ts      zod-validated client messages, server messages, per-player RoomView
     roomCode.ts      signed room codes (HMAC check characters) · invites.ts: quotas, "My rooms", expiry
     presence.ts      when a room wakes to check for dead sockets, and when it goes quiet and sleeps
+    rateLimit.ts     flood control: token buckets per socket and per room (see Costs & limits)
   worker/          Cloudflare Worker + Durable Objects (index, env, roomObject, inviteObject)
   client/          React + React Three Fiber
     net.ts / local.ts   websocket transport (online) / the same Room engine in the tab (solo)
@@ -186,92 +187,40 @@ src/
 ## Deploying to Cloudflare (Workers + Durable Objects)
 
 Everything deploys as **one Worker**: the static client, the API and the rooms. Durable Objects with SQLite storage
-are available on the free Workers plan.
+are available on the free Workers plan. You need a free [Cloudflare](https://dash.cloudflare.com/sign-up) account.
 
-1. **Log in once.** This opens a browser to authorize Wrangler with your Cloudflare account:
-   ```bash
-   npx wrangler login
-   ```
-   On a remote or headless machine, where the browser callback can't reach Wrangler, create an API token instead
-   (Cloudflare dashboard → My Profile → API Tokens → the "Edit Cloudflare Workers" template) and export it:
-   ```bash
-   export CLOUDFLARE_API_TOKEN=<token>
-   export CLOUDFLARE_ACCOUNT_ID=<account id>   # only needed if the token can see more than one account
-   npx wrangler whoami                         # check it works
-   ```
-2. **Deploy:**
-   ```bash
-   npm run deploy      # = vite build && wrangler deploy
-   ```
-   The first deploy creates the `sneak-infinite-heist` Worker and applies the Durable Object migration (`v1`:
-   `RoomDurableObject`, `InviteDurableObject`). Wrangler prints the URL, e.g.
-   `https://sneak-infinite-heist.<your-subdomain>.workers.dev`.
-3. **Set the production secrets.** They survive redeploys, and online hosting needs both:
-   ```bash
-   ROOM_CODE_SECRET=$(openssl rand -base64 32)
-   printf '%s\n' "$ROOM_CODE_SECRET"  # copy this value to your password manager
-   printf '%s' "$ROOM_CODE_SECRET" | npx wrangler secret put ROOM_CODE_SECRET
-   unset ROOM_CODE_SECRET
+```bash
+npx wrangler login
+npm run deploy                          # = vite build && wrangler deploy
+npx wrangler secret put ROOM_CODE_SECRET   # e.g. the output of: openssl rand -base64 32
+npm run invite:new -- sam               # prints an invite entry (sam:<key>) and its magic link
+npx wrangler secret put INVITE_CODES    # paste entries, comma-separated: sam:<key>,jo:<key>
+```
 
-   npm run invite:new -- sam          # prints a fresh invite entry and magic link
-   npx wrangler secret put INVITE_CODES   # paste entries, comma-separated: sam:<key>,jo:<key>
-   ```
-   - Save `ROOM_CODE_SECRET`: Cloudflare won't show secret values again, and changing it invalidates every
-     existing room code.
-   - The label (`sam`) only identifies the invite. Friends use the generated key.
-   - Never set `DEV_CHEATS` in production.
-4. **Share the site URL** with anyone (solo needs nothing), and a magic link `<site URL>/?invite=<key>` with each
-   friend who should be able to host. Joining a room only needs its link.
-
-**Managing invites:**
-
-- `INVITE_CODES` is the whole admin panel. Add an entry to invite someone, and remove it to revoke (their existing
-  room links keep working).
-- To rotate a key, change the key but keep the label.
-- Each invite may create 10 rooms per rolling 24 hours and keep 25. Rooms idle for 90 days are deleted lazily.
-
-**Kill switch:**
-
-- `echo false | npx wrangler secret put ONLINE_ENABLED` turns online rooms off instantly. Solo keeps working.
-- `npx wrangler secret delete ONLINE_ENABLED` turns them back on.
-
-**Optional rate limiting:** if you serve the Worker from your own zone, add a WAF rate-limiting rule for `/api/`
-(e.g. more than 60 requests per 10 seconds per IP → block).
-
-**Useful afterwards:**
-
-- Deploys are manual: run `npm run deploy` again to ship changes. CI only type-checks, tests and builds.
-- `npx wrangler tail` streams the live logs.
-- If you ever rename or remove a Durable Object class, append a migration; don't edit `v1`.
+Send each friend who should be able to host their magic link, `<site URL>/?invite=<key>`. Joining a room only needs
+its link, and solo needs nothing. See [Deploying to Cloudflare](docs/deployment.md) for the full walkthrough, invite
+management and the kill switch. Never set `DEV_CHEATS` in production.
 
 ### Costs & limits
 
-A group of friends playing most nights should fit comfortably in the **free Workers plan**. On the free plan,
-going over a daily limit doesn't bill you: further requests fail until the daily reset, so online rooms stop
-working for the rest of the day while solo keeps working (it runs in the browser). See Cloudflare's
-[Workers](https://developers.cloudflare.com/workers/platform/pricing/) and
-[Durable Objects](https://developers.cloudflare.com/durable-objects/platform/pricing/) pricing for current numbers.
+Sneak! is designed to run for free on Cloudflare's Workers free plan. On the free plan, going over a daily limit
+doesn't bill you: further requests fail until the daily reset, so online rooms stop working for the rest of the day
+while solo keeps working (it runs in the browser).
 
-What a game uses, and why it stays cheap:
-
-- **Static files are free.** Only `/api/*` runs the Worker.
-- **Rooms sleep between moves.** Durable Objects bill for every second they stay awake. Rooms use the WebSocket
-  hibernation API, so a room with players connected but idle isn't billed, and the 10-second heartbeat is answered
-  by Cloudflare without waking the room.
-- **Requests are small.** A 4-player, hour-long game sends a few hundred messages plus the heartbeats (incoming
-  WebSocket messages are billed at 1/20 of a request). That's well under 1% of the free daily allowance.
-- **Wake-ups are bounded.**
-  - Timers, bot moves and dead-socket checks use storage alarms. An alarm is only rewritten when it changes, since
-    each write is billed.
-  - A room in use checks for dead sockets once a minute. After 10 minutes with no joins or messages, it stops
-    checking and sleeps, so a tab left open overnight no longer keeps waking it. The tab's heartbeats may still
-    count as a few hundred requests a day. The next join or message checks right away, so a player whose
-    device died in the meantime frees their seat (and hands over the host) at once.
+- **Only `/api/*` runs the Worker.** Static files are free.
+- **Rooms sleep between moves** (WebSocket hibernation), and a room left open and quiet stops waking itself after 10
+  minutes.
 - **Bad links never reach a room.** Room codes are signed, so the Worker rejects made-up codes without waking a
-  Durable Object. Creating rooms needs an invite, and each invite is limited (see above).
-- **No rate limit by default.** Anyone with a room link can send messages. On the free plan the worst case is
-  hitting the daily cap. On the paid plan ($5/month), add a billing notification in the dashboard, and the WAF rule
-  above if you use your own domain.
+  Durable Object. Creating rooms needs an invite, and each invite creates at most 10 rooms per 24 hours and keeps 25.
+- **Every room is rate limited.** A room handles at most 8 messages/s and saves at most 1 change/s sustained, and a
+  socket that keeps flooding is disconnected for a minute. That puts a ceiling on what any one room can cost.
+
+> On the free plan, limits are hard caps, not bills. If any daily Durable Object limit, or the Workers request
+> limit, is exceeded, every online room on your account stops working until the reset at 00:00 UTC. Solo keeps
+> working. Add the optional WAF rate-limiting rule if you serve the Worker from your own domain. On the Workers Paid
+> plan ($5/month), the hard limits become small overage charges: set a billing notification in the dashboard.
+
+See [Costs and free-plan limits](docs/deployment.md#costs-and-free-plan-limits) for the worst-case numbers per room-hour.
 
 ## Credits & legal
 

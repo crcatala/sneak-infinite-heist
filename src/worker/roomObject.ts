@@ -5,7 +5,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { cheatsEnabled, inviteStub, type Env } from "./env";
 import { presenceSweepAt } from "../shared/presence";
-import { CLOSE, clientMessageSchema, type ServerMessage } from "../shared/protocol";
+import { CLOSE, clientMessageSchema, type ClientMessage, type ServerMessage } from "../shared/protocol";
+import { FloodControl } from "../shared/rateLimit";
 import { createRoomState, Room, RoomError, SeatClaimNeeded, type RoomDeps } from "../shared/room";
 import type { RoomState } from "../shared/roomTypes";
 
@@ -40,10 +41,15 @@ const STUCK_ALARM_BACKOFF_MS = 60 * 1000;
  * ever arrives). Generous because browsers throttle timers in background tabs to once a minute.
  */
 const HEARTBEAT_STALE_MS = 90 * 1000;
+/** Messages that never change room state, so they don't spend the room's write budget. */
+const STATELESS: ReadonlySet<ClientMessage["t"]> = new Set(["ping", "emote", "pin"]);
+const FLOOD_MESSAGE = "You were disconnected for sending too many messages. Wait a minute, then reload to rejoin.";
 
 export class RoomDurableObject extends DurableObject<Env> {
   private room: Room | null = null;
   private pushed: Pushed = { key: "", at: 0 };
+  /** Flood control, in memory only (see shared/rateLimit.ts). */
+  private flood = new FloodControl(Date.now());
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -120,6 +126,13 @@ export class RoomDurableObject extends DurableObject<Env> {
         server.close(CLOSE.notFound, "no such room");
         return new Response(null, { status: 101, webSocket: client });
       }
+      // A player just closed for flooding waits out the penalty before rejoining.
+      const rejoining = url.searchParams.get("pid") ?? url.searchParams.get("claim");
+      if (rejoining && this.flood.penalized(rejoining, Date.now())) {
+        this.sendTo(server, { t: "closed", code: CLOSE.flood, message: FLOOD_MESSAGE });
+        server.close(CLOSE.flood, "too many messages");
+        return new Response(null, { status: 101, webSocket: client });
+      }
       // Sweeps stop in a quiet room, so a seat whose device died meanwhile still reads as taken.
       // Settle that first, or the joiner can't claim it.
       await this.sweepStaleSockets();
@@ -166,6 +179,7 @@ export class RoomDurableObject extends DurableObject<Env> {
       return this.sendTo(ws, { t: "error", message: "Malformed message." });
     }
     if (!parsed.success) return this.sendTo(ws, { t: "error", message: "Invalid message." });
+    if (!this.allow(ws, att, parsed.data)) return;
     if (parsed.data.t !== "ping") ws.serializeAttachment({ ...att, active: Date.now() } satisfies Attachment);
     // As on join: drop players whose device died while the room was quiet before acting, so host
     // handover and the turn clock see who is really here.
@@ -199,6 +213,7 @@ export class RoomDurableObject extends DurableObject<Env> {
   private async handleDisconnect(ws: WebSocket) {
     const att = ws.deserializeAttachment() as Attachment | null;
     if (!this.room || !att) return;
+    if (att.sid) this.flood.forget(att.sid);
     // It can linger in getWebSockets() for a while: stop counting it as live.
     try {
       ws.serializeAttachment({ ...att, stale: true } satisfies Attachment);
@@ -255,6 +270,30 @@ export class RoomDurableObject extends DurableObject<Env> {
       await this.pushSummary(false);
     }
     await this.scheduleAlarm(progressed);
+  }
+
+  // --- flood control -------------------------------------------------------------------------
+
+  /**
+   * Flood control (see shared/rateLimit.ts). Over budget, the message is dropped and the sender told
+   * to slow down, at most every few seconds; a socket that keeps flooding is closed.
+   */
+  private allow(ws: WebSocket, att: Attachment, msg: ClientMessage): boolean {
+    const sid = att.sid ?? att.playerId;
+    const { verdict, notice } = this.flood.check(sid, att.playerId, !STATELESS.has(msg.t), Date.now());
+    if (verdict === "ok") return true;
+    if (notice) this.sendTo(ws, { t: "error", message: "Whoa, too many actions at once. Give it a second." });
+    if (verdict === "close") {
+      console.warn(`Room ${this.room?.state.code}: closed a flooding socket (player ${att.playerId})`);
+      this.sendTo(ws, { t: "closed", code: CLOSE.flood, message: FLOOD_MESSAGE });
+      try {
+        ws.close(CLOSE.flood, "too many messages");
+      } catch {
+        /* already closing */
+      }
+      void this.handleDisconnect(ws);
+    }
+    return false;
   }
 
   // --- persistence + messaging ----------------------------------------------------------------

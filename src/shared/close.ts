@@ -4,5 +4,7 @@ export const CLOSE = {
   notFound: 4404,
   claim: 4409,
   deleted: 4410,
+  /** Closed for flooding the room with messages. */
+  flood: 4429,
   offline: 4503,
 } as const;

@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeSocket, FakeState } from "./fakeRuntime";
 import { RoomDurableObject } from "../../src/worker/roomObject";
 import type { Env } from "../../src/worker/env";
-import type { ClientMessage, ServerMessage } from "../../src/shared/protocol";
+import { CLOSE, type ClientMessage, type ServerMessage } from "../../src/shared/protocol";
+import { RATE_LIMITS } from "../../src/shared/rateLimit";
 import type { RoomState } from "../../src/shared/roomTypes";
 
 const CODE = "TESTROOM";
@@ -145,5 +146,45 @@ describe("room presence on the Durable Object", () => {
 
     const claimed = await join({ name: "A", claim: playerId(a) });
     expect(playerId(claimed)).toBe(playerId(a));
+  });
+});
+
+describe("flood control on the Durable Object", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_800_000_000_000);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("lets a quick burst of normal actions through", async () => {
+    const { join, send } = await openRoom();
+    const host = await join({ name: "Host" });
+
+    for (let i = 0; i < 20; i++) await send(host, { t: "setReady", ready: i % 2 === 0 });
+
+    expect(host.closed).toBeNull();
+    expect(received(host).filter((m) => m.t === "error")).toEqual([]);
+  });
+
+  it("tells a flooding socket to slow down once, then closes it and holds its player out for a minute", async () => {
+    const { join, send } = await openRoom();
+    const host = await join({ name: "Host" });
+    const flooder = await join({ name: "Flooder" });
+    const { you, secret } = received(flooder).find((m) => m.t === "welcome") as Extract<ServerMessage, { t: "welcome" }>;
+
+    for (let i = 0; i < RATE_LIMITS.socket.capacity + RATE_LIMITS.floodDrops + 5; i++) await send(flooder, { t: "setReady", ready: i % 2 === 0 });
+
+    expect(received(flooder).filter((m) => m.t === "error")).toHaveLength(1);
+    expect(flooder.closed?.code).toBe(CLOSE.flood);
+    expect(received(flooder)).toContainEqual(expect.objectContaining({ t: "closed", code: CLOSE.flood }));
+    expect(host.closed).toBeNull();
+
+    // Rejoining right away is refused; after the penalty it works.
+    const refused = await join({ pid: you, secret });
+    expect(refused.closed?.code).toBe(CLOSE.flood);
+    vi.setSystemTime(Date.now() + RATE_LIMITS.penaltyMs + 1);
+    const back = await join({ pid: you, secret });
+    expect(back.closed).toBeNull();
+    expect(playerId(back)).toBe(you);
   });
 });
