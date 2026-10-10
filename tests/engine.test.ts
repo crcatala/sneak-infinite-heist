@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLASSIC_BOARD } from "../src/shared/board/classic";
-import { colourOf, getBoard } from "../src/shared/board/model";
+import { colourOf, getBoard, type Cell } from "../src/shared/board/model";
+import { detectiveRoute } from "../src/shared/board/paths";
 import { ACTION_DIE, DEFAULT_RULES } from "../src/shared/game/config";
 import { apply, debugOps, waitingOn } from "../src/shared/game/engine";
 import { autoPlace, createGame, occupancy, placementProblem, setupProblem } from "../src/shared/game/setup";
@@ -520,6 +521,16 @@ describe("detective movement and capture (§4.4, §4.7)", () => {
     expect(g.phase).toBe("roundOver");
     expect(g.result).toMatchObject({ winner: "detectives", reason: "captured", by: "d1", cell: c(6, 5) });
     expect(g.events.find((e) => e.type === "captured")).toMatchObject({ wasHidden: true });
+  });
+
+  it("records the out-and-back route the move preview draws when the pawn ends where it started", () => {
+    const start = c(4, 6);
+    let g = act(inPlay(), THIEF, { a: "thiefTurn", entry: "a", dest: c(6, 1) });
+    g = detectiveTurn(g, D1, { move: 2, action: "eye" }, { a: "move", dest: start });
+    const moved = detView(g).events.at(-1)!;
+    expect(moved).toMatchObject({ type: "detectiveMoved", to: start });
+    expect(moved).toMatchObject({ path: detectiveRoute(board, start, start, false) });
+    expect((moved as { path: Cell[] }).path).toEqual([board.neighbours[start][0], start]);
   });
 
   it("passing through the thief does nothing", () => {

@@ -3,7 +3,6 @@
 
 import { useMemo } from "react";
 import { getBoard, type Board, type Cell } from "../../shared/board/model";
-import { shortestPath } from "../../shared/board/paths";
 import { deduce } from "../../shared/game/deduce";
 import { occupancy as _unused, placementProblem, type Occupancy } from "../../shared/game/setup";
 import type { GameView } from "../../shared/game/views";
@@ -12,6 +11,7 @@ import type { Tile } from "../scene/Overlays";
 import { sfx } from "../sfx";
 import { useStore } from "../store";
 import { activePawn, dangerCells, detectiveEnds, pawnHex, thiefEnds } from "./derive";
+import { previewFocus, previewRoute, showsCount } from "./movePreview";
 import { useFx } from "./present";
 import { useGameUi, type GameUi } from "./uiStore";
 
@@ -141,6 +141,8 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
     let context: BoardInteraction["context"] = () => {};
     const hover = ui.hover;
     const o = occ(game);
+    // Cells in the thief's danger view: a legal move there gets a dash with gaps for the brackets (style 6).
+    const watched = ui.danger && game.phase === "play" && view.role === "thief" ? dangerCells(game) : new Set<Cell>();
     const refuse = (reason: string) => {
       sfx.error();
       toast(reason, "error");
@@ -153,7 +155,7 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
     }
     if (view.role === "thief" && ui.danger && game.phase === "play") {
       // Corner brackets rather than a fill: the room colour underneath stays readable and the amber move tiles stay clean.
-      for (const c of dangerCells(game)) tiles.push({ cell: c, colour: COLOURS.danger, alpha: 0.7, style: 3 });
+      for (const c of watched) tiles.push({ cell: c, colour: COLOURS.danger, alpha: 0.7, style: 3 });
     }
     if (fx.hint) for (const c of fx.hint.cells) tiles.push({ cell: c, colour: COLOURS.sight, alpha: 0.28, style: 1, pulse: true });
     for (const c of game.marks) markers.push({ cell: c, label: "?", colour: COLOURS.mark });
@@ -266,7 +268,7 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
       case "thiefEntry": {
         const hovered = ui.hoverSlot ? board.slotById[ui.hoverSlot] : null;
         for (const s of board.slots) tiles.push({ cell: s.inside, colour: COLOURS.reach, alpha: hovered?.id === s.id ? 0.7 : 0.3, style: 2, pulse: !hovered });
-        if (hovered) for (const c of thiefEnds(game, hovered.inside).keys()) tiles.push({ cell: c, colour: legalOutline(COLOURS.reach), alpha: 0.7, style: 5 });
+        if (hovered) for (const c of thiefEnds(game, hovered.inside).keys()) tiles.push({ cell: c, colour: legalOutline(COLOURS.reach), alpha: 0.7, style: watched.has(c) ? 6 : 5 });
         click = (cell) => {
           const slot = board.slots.find((s) => s.cell === cell || s.inside === cell);
           if (!slot) return refuse("Pick one of the 11 windows or doors (the padlock plinths) to sneak in.");
@@ -280,11 +282,10 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
         ghosts.push(mode.start);
         for (const c of ends.keys()) {
           const selected = ui.plan.dest === c;
-          tiles.push({ cell: c, colour: selected ? COLOURS.reach : legalOutline(COLOURS.reach), alpha: selected ? 0.8 : 0.85, style: selected ? 0 : 5, lift: 0.004 });
+          tiles.push({ cell: c, colour: selected ? COLOURS.reach : legalOutline(COLOURS.reach), alpha: selected ? 0.8 : 0.85, style: selected ? 0 : watched.has(c) ? 6 : 5, lift: 0.004 });
         }
         // A legal move that ends in view: heavier brackets over the amber, so "I can go there, but I'd be seen" reads at a glance.
         if (ui.danger && game.phase === "play") {
-          const watched = dangerCells(game);
           for (const c of ends.keys()) if (watched.has(c)) tiles.push({ cell: c, colour: COLOURS.danger, alpha: 1, style: 4, lift: 0.008 });
         }
         const focusCell = hover !== null && ends.has(hover) ? hover : ui.plan.dest;
@@ -338,14 +339,15 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
           const ends = detectiveEnds(game, pawn, turn.roll!.move);
           const owner = pawnHex(game, pawn.id);
           // The path and step count follow the pointer when it's on a legal end, otherwise the selected destination.
-          const focus = hover !== null && ends.has(hover) ? hover : ui.moveDest;
+          const focus = previewFocus(ends, hover, ui.moveDest);
           for (const [c, n] of ends) {
             const selected = ui.moveDest === c;
             tiles.push({ cell: c, colour: selected ? owner : legalOutline(owner), alpha: selected ? 0.75 : 0.85, style: selected ? 0 : 5 });
             // A stay (0 steps, on the pawn's own cell) gets no count: it's redundant.
-            if ((c === hover || c === ui.moveDest) && n > 0) badges.push({ cell: c, n, colour: owner });
+            if (showsCount(c, n, hover, ui.moveDest)) badges.push({ cell: c, n, colour: owner });
           }
-          if (focus !== null && focus !== pawn.cell && ends.has(focus)) path = { from: pawn.cell!, path: shortestPath(board, pawn.cell!, focus), colour: owner };
+          const route = previewRoute(board, pawn.cell!, focus, ends, game.rules.detectiveMayStay);
+          if (route) path = { from: pawn.cell!, path: route, colour: owner };
           if (ui.moveDest !== null) pawnGhost = { pawn: pawn.id, cell: ui.moveDest };
           if (hover !== null && board.region[hover] && !ends.has(hover)) {
             hoverReason = game.paintings.some((p) => p.cell === hover && p.status !== "stolen")

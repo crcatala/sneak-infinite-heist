@@ -75,6 +75,15 @@ export function detectiveDestinations(board: Board, start: Cell, steps: number, 
   return out;
 }
 
+/**
+ * The route a detective walks to `dest`, as the engine records it and the board animates: an out-and-back through a
+ * neighbour when the pawn ends where it started and the rules forbid staying put, otherwise a shortest path.
+ */
+export function detectiveRoute(board: Board, from: Cell, dest: Cell, mayStay: boolean): Cell[] {
+  if (dest === from && !mayStay) return [board.neighbours[from][0], from];
+  return shortestPath(board, from, dest);
+}
+
 /** A shortest path from `from` to `to`, excluding `from` (empty when equal or unreachable). */
 export function shortestPath(board: Board, from: Cell, to: Cell): Cell[] {
   if (from === to || distance(board, from, to) < 0) return [];

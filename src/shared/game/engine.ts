@@ -8,7 +8,7 @@
 //   blocking motion-detector prompt) → thief turn → next detective …   (T, D1, T, D2, T, D3, T, D1 …)
 
 import { getBoard, type Board, type Cell } from "../board/model";
-import { detectiveDestinations, shortestPath, thiefDestinations, thiefPathProblem } from "../board/paths";
+import { detectiveDestinations, detectiveRoute, thiefDestinations, thiefPathProblem } from "../board/paths";
 import { randInt, stateRng } from "../rng";
 import type { GameAction, ThiefTurnAction } from "./actions";
 import { ACTION_DIE } from "./config";
@@ -443,8 +443,7 @@ function detectiveAction(state: GameState, actor: string, action: GameAction) {
       const ends = detectiveEnds(state, pawn, roll.move);
       if (!ends.has(action.dest)) fail(moveProblem(state, board, pawn, action.dest, roll.move));
       const from = pawn.cell!;
-      let path = shortestPath(board, from, action.dest);
-      if (action.dest === from && ends.get(from) === 0 && !state.rules.detectiveMayStay) path = [board.neighbours[from][0], from];
+      const path = detectiveRoute(board, from, action.dest, state.rules.detectiveMayStay);
       pawn.cell = action.dest;
       turn.moved = true;
       emit(state, "all", { type: "detectiveMoved", pawn: pawn.id, from, to: action.dest, path });
