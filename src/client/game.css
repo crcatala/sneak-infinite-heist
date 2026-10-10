@@ -141,8 +141,17 @@
   gap: 8px;
   animation: panel-up var(--d-ui) var(--e-sneak);
 }
-.action-panel.wide {
-  width: min(940px, calc(100vw - 24px));
+/*
+ * The detective's own turn (roll, then move and act) is one fixed-size box. Everything inside is sized
+ * so no state can change its height: a chosen destination, an armed Eye, "Moved" / "Used" ticks and
+ * the hover captions all fit the same two segments. A box that grew and shrank also made the camera
+ * re-frame the board each time, because it frames the board around the panel.
+ */
+.action-panel.det {
+  --seg-line: 54px;
+  width: min(1100px, calc(100vw - 24px));
+  min-height: calc(var(--det-seg-h) + 24px);
+  justify-content: center;
 }
 @keyframes panel-up {
   from {
@@ -380,6 +389,45 @@
   display: grid;
   grid-template-columns: minmax(220px, 0.85fr) 1.75fr;
   gap: 8px;
+}
+@media (min-width: 980px) {
+  .action-panel.det {
+    /* The segment: top and bottom border and padding (19px), the control row, the gap and a two-line caption. */
+    --det-seg-h: calc(19px + var(--seg-line) + 4px + 2 * 1.3 * 0.78rem * var(--ui-scale));
+  }
+  .det-row {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  }
+  .det-seg {
+    height: var(--det-seg-h);
+  }
+  .det-seg .seg-line {
+    height: var(--seg-line);
+    min-height: 0;
+    flex-wrap: nowrap;
+  }
+  .det-seg .seg-line > b,
+  .det-seg .seg-line .btn,
+  .det-seg .grp-label {
+    white-space: nowrap;
+  }
+  .det-seg .seg-cap {
+    height: calc(2 * 1.3em);
+    min-height: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}
+/*
+ * Below ~1120px the move row (badge, title, Undo and Move here with their key hints) is wider than its
+ * segment, so the key caps drop out of the two-segment row. The shortcuts still work and are in the tooltips.
+ */
+@media (min-width: 980px) and (max-width: 1119px) {
+  .det-seg .btn .kbd {
+    display: none;
+  }
 }
 .det-seg {
   display: flex;
@@ -1271,71 +1319,111 @@
   z-index: 25;
   display: grid;
   place-items: center;
-  padding: 16px;
+  /* The top padding keeps the card under the turn bar's buttons. */
+  padding: 64px 16px 16px;
   background: rgba(7, 6, 26, 0.35);
   overflow: auto;
 }
+/*
+ * The card is laid out to fit a desktop window without scrolling: a header, a one-row stats strip, a
+ * two-column body (the replay map on the left, the notes and standings on the right) and the buttons.
+ * The map is the only part that stretches, and it scales down with the window's height.
+ */
 .round-card {
-  width: min(760px, 100%);
-  max-height: calc(100vh - 32px);
+  --map-h: max(150px, calc(100vh - 380px));
+  --notes-min: 8.5em;
+  width: min(780px, 100%);
+  max-height: calc(100vh - 80px);
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  padding: 14px 18px;
   animation: pop-in var(--d-page) var(--e-pop);
 }
 .round-card.won {
   border-color: var(--lamp-400);
 }
+.round-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.round-head .label {
+  margin: 0;
+}
 .round-headline {
   margin: 0;
   font-family: var(--f-logo);
-  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-size: clamp(1.5rem, min(3.1vw, 5.6vh), 2.6rem);
+  line-height: 1.1;
   color: var(--lamp-400);
-  text-shadow: 0 4px 0 #07061a;
+  text-shadow: 0 3px 0 #07061a;
 }
 .round-card.lost .round-headline {
   color: var(--moon-200);
 }
 .round-sub {
-  margin: 0;
+  margin: 2px 0 0;
   font-family: var(--f-head);
+  font-size: var(--t-small);
+  line-height: 1.3;
 }
 .round-stats {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 .stat {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px;
+  padding: 5px 4px 6px;
   border-radius: 12px;
   background: var(--night-700);
 }
 .stat b {
   font-family: var(--f-logo);
-  font-size: 1.4rem;
+  font-size: calc(1.15rem * var(--ui-scale));
+  line-height: 1.2;
   color: var(--lamp-400);
 }
 .stat span {
   font-size: var(--t-micro);
+  line-height: 1.2;
   color: var(--moon-200);
   text-align: center;
+}
+.round-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px 16px;
+  min-height: 0;
+}
+.round-body.has-replay {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+}
+.round-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
 }
 .replay {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
 }
 .replay-map.paper {
   background: var(--paper-100);
   border-radius: 12px;
-  padding: 8px;
-  max-width: 420px;
-  align-self: center;
+  padding: 6px;
   width: 100%;
+}
+/* The pad scales to whichever is smaller: the column's width or what the window's height leaves over. */
+.replay-map .pad-map {
+  max-height: var(--map-h);
 }
 .replay-controls {
   display: flex;
@@ -1345,6 +1433,17 @@
 .replay-controls > span {
   white-space: nowrap;
 }
+.replay-controls input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+.replay-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Fills whatever the standings leave; its own minimum (the toggle plus --notes-min) is what sizes the row. */
+  flex: 1 1 0;
+}
 .replay-toggle {
   display: flex;
   align-items: center;
@@ -1353,19 +1452,17 @@
 }
 .replay-replies {
   list-style: none;
-  margin: 0;
+  margin: 6px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
-  min-height: 2.6em;
-  max-height: 6.5em;
-  overflow: auto;
 }
 .replay-replies li {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  line-height: 1.25;
 }
 .replay-replies li[data-tone="alarm"] {
   color: var(--lamp-400);
@@ -1377,25 +1474,36 @@
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
+/*
+ * The caption and the detectives' replies share one region. It takes whatever height the rest of the right
+ * column leaves (but never less than --notes-min), and scrolls if a turn has more to say than fits. The
+ * row's height never depends on how much text a turn has, so scrubbing the timeline can't resize the
+ * card. --notes-min holds the longest caption (four lines) and a couple of replies.
+ */
+.replay-scroll {
+  flex: 1 1 0;
+  min-height: var(--notes-min);
+  overflow-y: auto;
+}
 .replay-caption {
   margin: 0;
-  min-height: 2.6em;
+  line-height: 1.3;
 }
 .standings ol {
-  margin: 6px 0;
+  margin: 4px 0;
   padding: 0;
   list-style: none;
   counter-reset: s;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .standings li {
   counter-increment: s;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 4px 12px;
   border-radius: 12px;
   background: var(--night-700);
 }
@@ -1406,6 +1514,44 @@
 }
 .standings li.winner {
   border: 2px solid var(--lamp-400);
+}
+.standings p {
+  margin: 0;
+}
+
+/* Tall windows have room to show a full round of replies (three detectives) without scrolling. */
+@media (min-height: 800px) {
+  .round-card {
+    --notes-min: 13em;
+  }
+}
+
+/* Short windows (a laptop with browser chrome): trade a little breathing room for staying on one screen. */
+@media (max-height: 680px) {
+  .round-over {
+    padding-top: 58px;
+    padding-bottom: 10px;
+  }
+  .round-card {
+    --map-h: max(140px, calc(100vh - 360px));
+    max-height: calc(100vh - 68px);
+    gap: 6px;
+    padding: 10px 16px;
+  }
+  .round-sub {
+    margin: 0;
+  }
+  .round-side,
+  .replay-notes,
+  .round-body {
+    gap: 6px;
+  }
+  .standings ol {
+    gap: 3px;
+  }
+  .standings li {
+    padding: 2px 12px;
+  }
 }
 
 /* --- emotes ----------------------------------------------------------------------------------- */
@@ -1561,6 +1707,12 @@
   .round-stats {
     grid-template-columns: repeat(3, 1fr);
   }
+  .round-body.has-replay {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .round-card {
+    --map-h: none;
+  }
   .emote-bar {
     bottom: auto;
     top: 206px;
@@ -1629,12 +1781,9 @@ body:has(.game-screen) .toasts {
   .round-over {
     place-items: center end;
     padding-right: 24px;
-    background: linear-gradient(90deg, transparent 40%, rgba(7, 6, 26, 0.55));
+    background: linear-gradient(90deg, transparent 30%, rgba(7, 6, 26, 0.55));
   }
   .round-card {
-    width: min(560px, 44vw);
-  }
-  .round-stats {
-    grid-template-columns: repeat(3, 1fr);
+    width: min(700px, 56vw);
   }
 }

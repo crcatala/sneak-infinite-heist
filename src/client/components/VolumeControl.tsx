@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePrefs } from "../prefs";
 import { sfx } from "../sfx";
 import { Icon } from "./Icon";
+import { tip } from "./Tip";
 
 const MIXER: { key: "master" | "music" | "sfx"; label: string }[] = [
   { key: "master", label: "Master" },
@@ -62,7 +63,7 @@ export function VolumeControl({ className = "", placement = "down", align = "end
         aria-expanded={open}
         aria-haspopup="true"
         aria-label={silent ? "Volume (muted)" : "Volume"}
-        title="Volume"
+        {...tip("Volume", "Master, music and sound-effect levels, plus a mute switch.", undefined, placement === "up" ? "top" : "bottom")}
         onClick={toggle}
       >
         <Icon name={silent ? "mute" : "volume"} size={18} />

@@ -7,6 +7,7 @@ import { getBoard } from "../../shared/board/model";
 import type { GameView } from "../../shared/game/views";
 import type { RoomView } from "../../shared/protocol";
 import { Icon } from "../components/Icon";
+import { tip } from "../components/Tip";
 import { MenuList, type MenuItem } from "../components/Menu";
 import { SettingsPanel } from "../components/SettingsPanel";
 import { pawnHex, pawnName, playerName, slotLabel } from "../game/derive";
@@ -59,88 +60,100 @@ export function RoundOver({ view, game }: { view: RoomView; game: GameView }) {
   const replies = showDetectives ? (rounds[turn]?.lines.filter((l) => l.kind !== "roll") ?? []) : [];
   const moreRounds = !!match && match.mode === "match" && !match.done;
 
+  const replayNotes = trail.length > 0 && (
+    <div className="replay-notes">
+      <label className="replay-toggle small">
+        <button
+          className="switch"
+          role="switch"
+          aria-checked={showDetectives}
+          aria-label="Show the detectives' moves"
+          onClick={() => useGameUi.getState().set({ replayDetectives: !showDetectives })}
+        />
+        Show the detectives' moves
+      </label>
+      <div className="replay-scroll scroll">
+        <p className="small muted replay-caption">
+          {step
+            ? `${step.entry ? `Entered by ${slotLabel(board, step.entry)}, ` : ""}moved ${step.path.length}${step.stole !== undefined ? `, stole "${ARTWORKS[step.stole].title}"` : ""}${step.disabledCamera ? `, disabled camera ${step.disabledCamera}` : ""}${step.cutPower ? ", cut the power" : ""}${step.triedLock ? `, tried lock ${step.triedLock.slot.toUpperCase()} (${step.triedLock.face})` : ""}${step.public ? " (in plain sight)" : ""}.`
+            : "Scrub through the thief's secret path."}
+        </p>
+        {showDetectives && (
+          <ul className="replay-replies small" aria-label="What the detectives did next">
+            {replies.length === 0 ? (
+              <li className="muted">{turn === 0 ? "The detectives are at their posts." : "The detectives did nothing of note."}</li>
+            ) : (
+              replies.map((l) => (
+                <li key={l.seq} data-tone={l.tone}>
+                  <i className="replay-dot" style={{ background: l.hex ?? "var(--moon-200)" }} />
+                  {l.text}
+                </li>
+              ))
+            )}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="round-over">
       <div className={`round-card panel glass ${iWon ? "won" : "lost"}`}>
-        <p className="label">{match?.mode === "match" ? `Round ${match.round + 1} of ${match.total}` : "Round over"}</p>
-        <h1 className="round-headline">{headline}</h1>
-        <p className="round-sub">
-          {iWon ? "You win!" : "Better luck next time."} {playerName(view, game.thief.controller)} was the thief
-          {result.reason === "escaped" ? ` and got out through the ${slotLabel(board, result.slot!)} with ${result.paintings} painting${result.paintings === 1 ? "" : "s"}.` : result.reason === "captured" ? `; ${pawnName(game, result.by!)} made the arrest.` : "."}
-        </p>
+        <header className="round-head">
+          <p className="label">{match?.mode === "match" ? `Round ${match.round + 1} of ${match.total}` : "Round over"}</p>
+          <h1 className="round-headline">{headline}</h1>
+          <p className="round-sub">
+            {iWon ? "You win!" : "Better luck next time."} {playerName(view, game.thief.controller)} was the thief
+            {result.reason === "escaped" ? ` and got out through the ${slotLabel(board, result.slot!)} with ${result.paintings} painting${result.paintings === 1 ? "" : "s"}.` : result.reason === "captured" ? `; ${pawnName(game, result.by!)} made the arrest.` : "."}
+          </p>
+        </header>
 
         <div className="round-stats">
-          <Stat label="Thief turns" value={game.thief.turns} />
-          <Stat label="Paintings" value={result.paintings} />
-          <Stat label="Times spotted" value={game.thief.sightings} />
-          <Stat label="Snips used" value={2 - game.thief.snipsLeft} />
-          <Stat label="Came in via" value={game.thief.entry ? game.thief.entry.toUpperCase() : "—"} />
+          <Stat label="Thief turns" value={game.thief.turns} hint="How many moves the thief made." />
+          <Stat label="Paintings" value={result.paintings} hint="Paintings the thief had stolen when the round ended." />
+          <Stat label="Times spotted" value={game.thief.sightings} hint="How often a detective's eyes or a camera caught the thief." />
+          <Stat label="Snips used" value={2 - game.thief.snipsLeft} hint="Motion-detector wires the thief snipped (of 2)." />
+          <Stat label="Came in via" value={game.thief.entry ? game.thief.entry.toUpperCase() : "—"} hint="The window or door the thief sneaked in through." />
         </div>
 
-        {trail.length > 0 && (
-          <div className="replay">
-            <div className="replay-map paper">
-              <PadMap game={game} upTo={turn} detectives={detectives} />
+        <div className={`round-body${trail.length > 0 ? " has-replay" : ""}`}>
+          {trail.length > 0 && (
+            <div className="replay">
+              <div className="replay-map paper">
+                <PadMap game={game} upTo={turn} detectives={detectives} />
+              </div>
+              <div className="replay-controls">
+                <button className="btn small icon" aria-label={playing ? "Pause replay" : "Play replay"} {...tip(playing ? "Pause" : "Play the replay", "Steps through the thief's turns, one every moment.")} onClick={() => {
+                  if (!playing && turn >= trail.length) setTurn(0);
+                  setPlaying((p) => !p);
+                }}>
+                  <Icon name={playing ? "x" : "play"} size={16} />
+                </button>
+                <input type="range" min={0} max={trail.length} value={turn} onChange={(e) => (setPlaying(false), setTurn(Number(e.target.value)))} aria-label="Replay turn" style={{ ["--pct" as string]: `${(turn / trail.length) * 100}%` }} />
+                <span className="small muted">{turn === 0 ? "Before entry" : `Turn ${turn}`}</span>
+              </div>
             </div>
-            <div className="replay-controls">
-              <button className="btn small icon" aria-label={playing ? "Pause replay" : "Play replay"} onClick={() => {
-                if (!playing && turn >= trail.length) setTurn(0);
-                setPlaying((p) => !p);
-              }}>
-                <Icon name={playing ? "x" : "play"} size={16} />
-              </button>
-              <input type="range" min={0} max={trail.length} value={turn} onChange={(e) => (setPlaying(false), setTurn(Number(e.target.value)))} aria-label="Replay turn" style={{ ["--pct" as string]: `${(turn / trail.length) * 100}%` }} />
-              <span className="small muted">
-                {turn === 0 ? "Before entry" : `Turn ${turn}`}
-              </span>
-            </div>
-            <label className="replay-toggle small">
-              <button
-                className="switch"
-                role="switch"
-                aria-checked={showDetectives}
-                aria-label="Show the detectives' moves"
-                onClick={() => useGameUi.getState().set({ replayDetectives: !showDetectives })}
-              />
-              Show the detectives' moves
-            </label>
-            <p className="small muted replay-caption">
-              {step
-                ? `${step.entry ? `Entered by ${slotLabel(board, step.entry)}, ` : ""}moved ${step.path.length}${step.stole !== undefined ? `, stole "${ARTWORKS[step.stole].title}"` : ""}${step.disabledCamera ? `, disabled camera ${step.disabledCamera}` : ""}${step.cutPower ? ", cut the power" : ""}${step.triedLock ? `, tried lock ${step.triedLock.slot.toUpperCase()} (${step.triedLock.face})` : ""}${step.public ? " (in plain sight)" : ""}.`
-                : "Scrub through the thief's secret path."}
-            </p>
-            {showDetectives && (
-              <ul className="replay-replies small" aria-label="What the detectives did next">
-                {replies.length === 0 ? (
-                  <li className="muted">{turn === 0 ? "The detectives are at their posts." : "The detectives did nothing of note."}</li>
-                ) : (
-                  replies.map((l) => (
-                    <li key={l.seq} data-tone={l.tone}>
-                      <i className="replay-dot" style={{ background: l.hex ?? "var(--moon-200)" }} />
-                      {l.text}
+          )}
+
+          <div className="round-side">
+            {replayNotes}
+            {match && match.mode === "match" && (
+              <div className="standings">
+                <div className="label">{match.done ? "Final standings" : "Standings"}</div>
+                <ol>
+                  {match.standings.map((s, i) => (
+                    <li key={s.playerId} className={i === 0 && match.done ? "winner" : ""}>
+                      <b>{playerName(view, s.playerId)}</b>
+                      <span className="spacer" />
+                      <span className="chip gold">{s.score} pts</span>
                     </li>
-                  ))
-                )}
-              </ul>
+                  ))}
+                </ol>
+                {!match.done && <p className="faint small">Next thief: {playerName(view, match.thieves[match.round + 1])}</p>}
+              </div>
             )}
           </div>
-        )}
-
-        {match && match.mode === "match" && (
-          <div className="standings">
-            <div className="label">{match.done ? "Final standings" : "Standings"}</div>
-            <ol>
-              {match.standings.map((s, i) => (
-                <li key={s.playerId} className={i === 0 && match.done ? "winner" : ""}>
-                  <b>{playerName(view, s.playerId)}</b>
-                  <span className="spacer" />
-                  <span className="chip gold">{s.score} pts</span>
-                </li>
-              ))}
-            </ol>
-            {!match.done && <p className="faint small">Next thief: {playerName(view, match.thieves[match.round + 1])}</p>}
-          </div>
-        )}
+        </div>
 
         <div className="action-row">
           <button className="btn ghost" onClick={() => navigate("/")}>
@@ -165,9 +178,9 @@ export function RoundOver({ view, game }: { view: RoomView; game: GameView }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function Stat({ label, value, hint }: { label: string; value: string | number; hint: string }) {
   return (
-    <div className="stat">
+    <div className="stat" tabIndex={0} {...tip(label, hint, undefined, "top")}>
       <b>{value}</b>
       <span>{label}</span>
     </div>

@@ -124,6 +124,14 @@ Everything looks like a chunky plastic game piece: rounded, with a lit top edge 
 - **Card** (setup counters, detective action cards):
   - A panel with a 6px coloured top band.
   - Hovering lifts it 3px, and pressing pushes it down.
+- **Tooltip** (`components/Tip.tsx`):
+  - A small panel in `--night-950` with a 2px `--night-600` border, a solid lip and a caret pointing at its
+    element. A Fredoka heading in `--lamp-300`, an optional key cap for the shortcut, and one Nunito sentence in
+    `--moon-200` saying what the thing is.
+  - Any element opts in with `{...tip("Title", "One sentence.", "KEY")}`. Use it on every HUD stat and icon-only
+    button, never the browser's `title` bubble. Icon-only buttons also keep an `aria-label`.
+  - Opens after a short hover rest (instantly when moving between neighbours) and on keyboard Tab focus. Never on
+    touch, and never after a click on that element.
 - **Inputs:**
   - `--night-700` fill, 14px radius, and a 2px border that turns gold on focus.
   - Never a bare browser field: inputs always sit inside a styled "dialogue" panel with a prompt line above
@@ -278,3 +286,15 @@ when something is revealed.
   **Choose** ("Cycle left and right, then choose your detective!"), the second at the ready button ("Don't forget to
   ready up!"). They draw themselves in, bob toward their target, and hold still under reduced motion. Each step is
   remembered per browser once done.
+
+## 10. In-game HUD layout
+
+- **No scroll on desktop.** The round-over card is a header, a one-row stats strip, a two-column body (the replay
+  map, then the notes and standings) and the buttons. It docks right so the 3D board stays in view. The map is
+  the only stretchy part and scales with the window height (`--map-h`), so the card fits from 1280×600 up without
+  scrolling. Narrow or short windows fall back to scrolling instead of squeezing.
+- **A steady bottom panel.** A detective's own turn (roll, then move and act) is one fixed-size box. The control
+  row and the hover caption are fixed heights, and the caption is clamped to two lines, so picking a
+  destination, arming the Eye or hovering a camera never changes the panel's height. (The camera frames the
+  board around the panel, so a panel that changed height also made the board jump.) Keep new copy short
+  enough to fit two lines.

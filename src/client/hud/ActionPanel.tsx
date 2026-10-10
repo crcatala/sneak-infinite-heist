@@ -7,6 +7,7 @@ import { lockSplit, setupProblem } from "../../shared/game/setup";
 import type { GameView } from "../../shared/game/views";
 import type { RoomView } from "../../shared/protocol";
 import { Icon } from "../components/Icon";
+import { tip } from "../components/Tip";
 import { activePawn, cellLabel, detectiveEnds, playerName, slotLabel } from "../game/derive";
 import type { BoardInteraction } from "../game/interact";
 import { EMPTY_PLAN, useGameUi } from "../game/uiStore";
@@ -45,6 +46,7 @@ export function ActionPanel({ view, game, ix }: { view: RoomView; game: GameView
           <button
             className="btn primary big"
             autoFocus
+            {...tip("Roll the dice", "The black die is how far you can walk. The white die is your action: Eye, Scan or Motion.", "Space", "top")}
             onClick={() => {
               send({ t: "game", action: { a: "roll" } });
             }}
@@ -65,7 +67,7 @@ export function ActionPanel({ view, game, ix }: { view: RoomView; game: GameView
   }
   if (!body) return null;
   return (
-    <section className={`action-panel panel glass${m.kind === "detAct" ? " wide" : ""}`} data-hud="band" aria-label="Your actions">
+    <section className={`action-panel panel glass${m.kind === "detAct" || m.kind === "detRoll" ? " det" : ""}`} data-hud="band" aria-label="Your actions">
       {body}
     </section>
   );
@@ -134,7 +136,7 @@ function SetupPieces({ game, send, view, ix }: { game: GameView; send: Send; vie
             {board.mainRooms.map((r) => {
               const n = game.paintings.filter((p) => board.region[p.cell] === r).length;
               return (
-                <span key={r} className={`room-chip floor-${board.colours[r]}${n ? " ok" : ""}`} title={regionName(board, r)}>
+                <span key={r} className={`room-chip floor-${board.colours[r]}${n ? " ok" : ""}`} {...tip(regionName(board, r), n ? `${n} painting${n === 1 ? "" : "s"} hung here.` : "Needs at least one painting.", undefined, "top")}>
                   <span className="room-swatch" />
                   {regionName(board, r).replace(" Gallery", "").replace(" Atrium", "")} {n ? <Icon name="check" size={14} /> : "0"}
                 </span>
@@ -178,10 +180,10 @@ function SetupButtons({ game, send, view, problem }: { game: GameView; send: Sen
   const others = view.waitingOn.filter((id) => id !== view.you).map((id) => playerName(view, id));
   return (
     <div className="action-row">
-      <button className="btn small" onClick={() => send({ t: "game", action: { a: "autoPlace" } })}>
+      <button className="btn small" {...tip("Auto-place", "Fill in this step with a sensible random layout. You can still move things afterwards.", undefined, "top")} onClick={() => send({ t: "game", action: { a: "autoPlace" } })}>
         <Icon name="sparkle" size={16} /> Auto-place
       </button>
-      <button className="btn small" onClick={() => send({ t: "game", action: { a: "clear" } })}>
+      <button className="btn small" {...tip("Clear", "Take everything off the board for this step and start again.", undefined, "top")} onClick={() => send({ t: "game", action: { a: "clear" } })}>
         <Icon name="trash" size={16} /> Clear
       </button>
       <span className="spacer" />
@@ -358,7 +360,9 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
     <div className="det-row">
       <div className={`det-seg${canMove ? "" : " done"}`}>
         <div className="seg-line">
-          <span className="die-badge num">{roll.move}</span>
+          <span className="die-badge num" {...tip("Movement die", `You can walk up to ${roll.move} space${roll.move === 1 ? "" : "s"} this turn. You can move before or after your action.`, undefined, "top")}>
+            {roll.move}
+          </span>
           <b>Move up to {roll.move}</b>
           {!canMove && (
             <>
@@ -368,13 +372,13 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
           )}
           {canMove && moveDest !== null && (
             <>
-              <span className="small">to the {cellLabel(board, moveDest)}</span>
               <span className="spacer" />
-              <button className="btn small ghost" onClick={() => set({ moveDest: null })}>
+              <button className="btn small ghost" {...tip("Undo", "Forget the chosen space and pick another.", "Esc", "top")} onClick={() => set({ moveDest: null })}>
                 Undo <span className="kbd">Esc</span>
               </button>
               <button
                 className="btn small primary"
+                {...tip("Move here", "Walk your pawn to the chosen space.", "Enter", "top")}
                 onClick={() => {
                   send({ t: "game", action: { a: "move", dest: moveDest } });
                   set({ moveDest: null });
@@ -392,7 +396,9 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
                 <b>Click a glowing space</b> ({ends.size} option{ends.size === 1 ? "" : "s"}). You can't stop on a painting or another detective.
               </>
             ) : (
-              "Happy with it? Move here, or click another glowing space."
+              <>
+                To the <b>{cellLabel(board, moveDest)}</b>. Move here, or click another glowing space.
+              </>
             )}
           </p>
         )}
@@ -401,7 +407,7 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
       <div className={`det-seg${canAct ? "" : " done"}`}>
         {!canAct && (
           <div className="seg-line">
-            <span className="die-badge act">
+            <span className="die-badge act" {...tip(`${info.name} die`, info.blurb, undefined, "top")}>
               <Icon name={info.icon} size={18} />
             </span>
             <b>{info.name}</b>
@@ -412,13 +418,13 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
         {canAct && roll.action === "eye" && eyeTarget === null && (
           <>
             <div className="seg-line">
-              <span className="die-badge act">
+              <span className="die-badge act" {...tip(`${info.name} die`, info.blurb, undefined, "top")}>
                 <Icon name="eye" size={18} />
               </span>
               <b>Eye</b>
               <span className="grp">
                 <span className="grp-label">Your own eyes</span>
-                <button className="btn small primary" {...eyeHover("self")} onClick={() => pickEye("self")} title="Look from where you stand (E)">
+                <button className="btn small primary" {...eyeHover("self")} {...tip("My eyes", "Look for the thief in straight lines from where you stand. A yes reveals them to everyone.", "E", "top")} onClick={() => pickEye("self")}>
                   <Icon name="eye" size={16} /> My eyes
                 </button>
               </span>
@@ -431,7 +437,7 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
                       className={`cam-btn${eyePreview === c.n ? " active" : ""}`}
                       disabled={knownOut}
                       aria-label={`Security camera ${c.n}`}
-                      title={knownOut ? "The power is out" : `Security camera ${c.n}, in the ${roomOf(c.n)} (Shift+${c.n})`}
+                      {...tip(`Camera ${c.n}`, knownOut ? "The power is out, so cameras can't answer." : `In the ${roomOf(c.n)}. Asks it whether it can see the thief, without revealing them.`, `Shift+${c.n}`, "top")}
                       {...eyeHover(c.n)}
                       onClick={() => pickEye(c.n)}
                     >
@@ -449,15 +455,15 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
         {canAct && roll.action === "eye" && eyeTarget !== null && (
           <>
             <div className="seg-line">
-              <span className="die-badge act">
+              <span className="die-badge act" {...tip(`${info.name} die`, info.blurb, undefined, "top")}>
                 <Icon name="eye" size={18} />
               </span>
               <b>{eyeTarget === "self" ? "Use my eyes?" : `Ask camera ${eyeTarget}?`}</b>
               <span className="spacer" />
-              <button className="btn small ghost" onClick={cancelEye}>
+              <button className="btn small ghost" {...tip("Cancel", "Pick a different way to look.", "Esc", "top")} onClick={cancelEye}>
                 Cancel <span className="kbd">Esc</span>
               </button>
-              <button className="btn small primary" autoFocus onClick={() => act({ t: "game", action: { a: "eye", target: eyeTarget } })}>
+              <button className="btn small primary" autoFocus {...tip(eyeTarget === "self" ? "Look" : `Check camera ${eyeTarget}`, "Spend your action on this.", "Enter", "top")} onClick={() => act({ t: "game", action: { a: "eye", target: eyeTarget } })}>
                 <Icon name="check" size={16} /> {eyeTarget === "self" ? "Look" : `Check camera ${eyeTarget}`} <span className="kbd">Enter</span>
               </button>
             </div>
@@ -477,11 +483,11 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
         {canAct && roll.action !== "eye" && (
           <>
             <div className="seg-line">
-              <span className="die-badge act">
+              <span className="die-badge act" {...tip(`${info.name} die`, info.blurb, undefined, "top")}>
                 <Icon name={info.icon} size={18} />
               </span>
               <b>{info.name}</b>
-              <button className="btn small primary" disabled={knownOut} onClick={() => act({ t: "game", action: roll.action === "scan" ? { a: "scan" } : { a: "motion" } })} title={roll.action === "scan" ? "Scan all cameras (S)" : "Motion detectors (M)"}>
+              <button className="btn small primary" disabled={knownOut} onClick={() => act({ t: "game", action: roll.action === "scan" ? { a: "scan" } : { a: "motion" } })} {...tip(roll.action === "scan" ? "Scan all cameras" : "Motion detectors", info.blurb, roll.action === "scan" ? "S" : "M", "top")}>
                 <Icon name={info.icon} size={16} /> {roll.action === "scan" ? "Scan cameras" : "Motion detectors"} <span className="kbd">{roll.action === "scan" ? "S" : "M"}</span>
               </button>
               <span className="spacer" />
@@ -497,7 +503,7 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
 
 function SkipButton({ act }: { act: (a: Parameters<Send>[0] & { t: "game" }) => void }) {
   return (
-    <button className="btn small ghost" onClick={() => act({ t: "game", action: { a: "skipAction" } })} title="Give up this action (X)">
+    <button className="btn small ghost" onClick={() => act({ t: "game", action: { a: "skipAction" } })} {...tip("Skip the action", "Give up this action without using it.", "X", "top")}>
       Skip <span className="kbd">X</span>
     </button>
   );
