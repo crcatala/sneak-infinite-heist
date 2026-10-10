@@ -140,7 +140,8 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
       for (const [c, w] of heat.weights) tiles.push({ cell: c, colour: COLOURS.heat, alpha: 0.12 + 0.45 * (w / max) });
     }
     if (view.role === "thief" && ui.danger && game.phase === "play") {
-      for (const c of dangerCells(game)) tiles.push({ cell: c, colour: COLOURS.danger, alpha: 0.2, style: 1 });
+      // Corner brackets rather than a fill: the room colour underneath stays readable and the amber move tiles stay clean.
+      for (const c of dangerCells(game)) tiles.push({ cell: c, colour: COLOURS.danger, alpha: 0.7, style: 3 });
     }
     if (fx.hint) for (const c of fx.hint.cells) tiles.push({ cell: c, colour: COLOURS.sight, alpha: 0.28, style: 1, pulse: true });
     for (const c of game.marks) markers.push({ cell: c, label: "?", colour: COLOURS.mark });
@@ -266,6 +267,11 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
         const ends = thiefEnds(game, mode.start);
         ghosts.push(mode.start);
         for (const c of ends.keys()) tiles.push({ cell: c, colour: COLOURS.reach, alpha: ui.plan.dest === c ? 0.8 : 0.42, lift: 0.004 });
+        // A legal move that ends in view: heavier brackets over the amber, so "I can go there, but I'd be seen" reads at a glance.
+        if (ui.danger && game.phase === "play") {
+          const watched = dangerCells(game);
+          for (const c of ends.keys()) if (watched.has(c)) tiles.push({ cell: c, colour: COLOURS.danger, alpha: 1, style: 4, lift: 0.008 });
+        }
         const focusCell = hover !== null && ends.has(hover) ? hover : ui.plan.dest;
         if (focusCell !== null && ends.has(focusCell)) {
           path = { from: mode.start, path: focusCell === ui.plan.dest && ui.plan.path ? ui.plan.path : ends.get(focusCell)! };
