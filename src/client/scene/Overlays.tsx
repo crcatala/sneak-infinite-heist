@@ -12,8 +12,8 @@ export interface Tile {
   cell: Cell;
   colour: string;
   alpha: number;
-  /** 0 = filled, 1 = hatched (danger), 2 = ring (outline only). */
-  style?: 0 | 1 | 2;
+  /** 0 = filled, 1 = hatched, 2 = ring (outline only), 3 = corner brackets (danger), 4 = thick corner brackets, 5 = pip (legal move). */
+  style?: 0 | 1 | 2 | 3 | 4 | 5;
   /** Pulses gently. */
   pulse?: boolean;
   lift?: number;
@@ -42,7 +42,21 @@ const frag = /* glsl */ `
     vec2 d = abs(vUv - 0.5) * 2.0;
     float edge = max(d.x, d.y);
     float a = vInfo.x;
-    if (vInfo.y > 1.5) {
+    if (vInfo.y > 4.5) {
+      // pip (legal move): a soft centred disc plus a barely-there tint, so the room colour still shows around it and
+      // the corner brackets (danger) never collide with it.
+      float r = length(d);
+      a *= max(1.0 - smoothstep(0.55, 0.68, r), 0.1) * (1.0 - smoothstep(0.93, 1.0, edge));
+    } else if (vInfo.y > 2.5) {
+      // corner brackets (danger): only the cell's corners are drawn, so the floor colour stays readable.
+      // 3 = thin, 4 = thick (used where a danger cell is also a legal move).
+      float w = vInfo.y > 3.5 ? 0.3 : 0.2;
+      float lo = 0.96 - w;
+      float arm = 0.4;
+      float onX = step(lo, d.x) * step(arm, d.y);
+      float onY = step(lo, d.y) * step(arm, d.x);
+      a *= max(onX, onY) * (1.0 - smoothstep(0.95, 1.0, edge));
+    } else if (vInfo.y > 1.5) {
       // ring
       a *= smoothstep(0.72, 0.8, edge) * (1.0 - smoothstep(0.94, 1.0, edge));
     } else if (vInfo.y > 0.5) {

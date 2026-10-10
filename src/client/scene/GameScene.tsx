@@ -203,7 +203,10 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
               <ThiefPawn haul={game.thief.haul} />
             </PopIn>
           ) : (
-            <ThiefPawn haul={game.thief.haul} ghost />
+            <>
+              <ThiefPawn haul={game.thief.haul} />
+              <HiddenMark />
+            </>
           )}
         </Mover>
       )}
@@ -399,6 +402,32 @@ function GhostPawn({ colour }: { colour: Parameters<typeof Pawn>[0]["colour"] })
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.3, 0.42, 24]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Under your own unrevealed thief: a violet glow disc and pulsing ring. The pawn itself stays solid (readable on any
+ * floor colour); this is what says "only you can see this". */
+function HiddenMark() {
+  const ring = useRef<THREE.MeshBasicMaterial>(null);
+  const glow = useRef<THREE.MeshBasicMaterial>(null);
+  const { invalidate } = useThree();
+  useFrame(({ clock }) => {
+    const k = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 2.6);
+    if (ring.current) ring.current.opacity = 0.55 + 0.4 * k;
+    if (glow.current) glow.current.opacity = 0.35 + 0.2 * k;
+    invalidate();
+  });
+  return (
+    <group position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh>
+        <circleGeometry args={[0.46, 28]} />
+        <meshBasicMaterial ref={glow} map={glowTexture()} color="#a58bff" transparent depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 0, 0.004]}>
+        <ringGeometry args={[0.36, 0.44, 32]} />
+        <meshBasicMaterial ref={ring} color="#c9b8ff" transparent depthWrite={false} />
       </mesh>
     </group>
   );
