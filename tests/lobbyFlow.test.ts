@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CHARACTERS } from "../src/shared/characters";
-import { cycle, flowPose, hintStep, ringOffset, type HintContext } from "../src/client/lobbyFlow";
+import { cycle, flowPose, hintStep, lobbyKey, ringOffset, swipeDir, type HintContext, type LobbyKeyContext } from "../src/client/lobbyFlow";
 
 describe("cover-flow ring", () => {
   const n = CHARACTERS.length;
@@ -86,5 +86,58 @@ describe("first-time lobby hints", () => {
   it("remembers each step on its own, so a half-finished first visit resumes at the ready hint", () => {
     // Chose a detective last time, closed the tab before readying up.
     expect(hintStep({ picked: true, readied: false }, ctx())).toBe("ready");
+  });
+});
+
+describe("swipes", () => {
+  it("maps a drag to a direction, ignoring short ones", () => {
+    expect(swipeDir(-80)).toBe(1); // drag left: next detective
+    expect(swipeDir(80)).toBe(-1); // drag right: previous
+    expect(swipeDir(0)).toBe(0);
+    expect(swipeDir(40)).toBe(0);
+    expect(swipeDir(-40)).toBe(0);
+    expect(swipeDir(-41)).toBe(1);
+    expect(swipeDir(12, 10)).toBe(-1);
+  });
+});
+
+describe("lobby keys", () => {
+  const ctx = (over: Partial<LobbyKeyContext> = {}): LobbyKeyContext => ({ focus: "idle", sheet: false, canBrowse: true, canChoose: true, ...over });
+
+  it("cycles with the arrows and readies with R wherever focus is", () => {
+    for (const focus of ["idle", "other"] as const) {
+      expect(lobbyKey("ArrowLeft", ctx({ focus }))).toBe("prev");
+      expect(lobbyKey("ArrowRight", ctx({ focus }))).toBe("next");
+      expect(lobbyKey("r", ctx({ focus }))).toBe("ready");
+      expect(lobbyKey("R", ctx({ focus }))).toBe("ready");
+    }
+  });
+
+  it("chooses on Enter and readies on Space only when nothing is focused (the gamepad's A and X)", () => {
+    expect(lobbyKey("Enter", ctx())).toBe("choose");
+    expect(lobbyKey(" ", ctx())).toBe("ready");
+  });
+
+  it("leaves Enter and Space alone while a button is focused, so it never hijacks it", () => {
+    expect(lobbyKey("Enter", ctx({ focus: "other" }))).toBeNull();
+    expect(lobbyKey(" ", ctx({ focus: "other" }))).toBeNull();
+  });
+
+  it("does not choose a taken detective, a spectator's pick, or anything for a solo thief", () => {
+    expect(lobbyKey("Enter", ctx({ canChoose: false }))).toBeNull();
+    expect(lobbyKey("Enter", ctx({ canBrowse: false }))).toBeNull();
+    expect(lobbyKey("ArrowLeft", ctx({ canBrowse: false }))).toBeNull();
+    expect(lobbyKey("ArrowRight", ctx({ canBrowse: false }))).toBeNull();
+    expect(lobbyKey(" ", ctx({ canBrowse: false }))).toBe("ready");
+  });
+
+  it("closes the rules sheet on Escape and ignores everything else while it is open", () => {
+    expect(lobbyKey("Escape", ctx({ sheet: true }))).toBe("closeSheet");
+    expect(lobbyKey("Escape", ctx())).toBe("leave");
+    for (const key of ["Enter", " ", "r", "ArrowLeft", "ArrowRight"]) expect(lobbyKey(key, ctx({ sheet: true }))).toBeNull();
+  });
+
+  it("stays out of text fields", () => {
+    for (const key of ["Escape", "Enter", " ", "r", "ArrowLeft", "ArrowRight"]) expect(lobbyKey(key, ctx({ focus: "input" }))).toBeNull();
   });
 });
