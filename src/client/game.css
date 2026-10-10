@@ -149,7 +149,7 @@
  */
 .action-panel.det {
   --seg-line: 54px;
-  width: min(1040px, calc(100vw - 24px));
+  width: min(1100px, calc(100vw - 24px));
   min-height: calc(var(--det-seg-h) + 24px);
   justify-content: center;
 }
@@ -418,6 +418,15 @@
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
+  }
+}
+/*
+ * Below ~1120px the move row (badge, title, Undo and Move here with their key hints) is wider than its
+ * segment, so the key caps drop out of the two-segment row. The shortcuts still work and are in the tooltips.
+ */
+@media (min-width: 980px) and (max-width: 1119px) {
+  .det-seg .btn .kbd {
+    display: none;
   }
 }
 .det-seg {
@@ -1322,6 +1331,7 @@
  */
 .round-card {
   --map-h: max(150px, calc(100vh - 380px));
+  --notes-min: 8.5em;
   width: min(780px, 100%);
   max-height: calc(100vh - 80px);
   overflow: auto;
@@ -1431,6 +1441,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Fills whatever the standings leave; its own minimum (the toggle plus --notes-min) is what sizes the row. */
+  flex: 1 1 0;
 }
 .replay-toggle {
   display: flex;
@@ -1440,13 +1452,11 @@
 }
 .replay-replies {
   list-style: none;
-  margin: 0;
+  margin: 6px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
-  /* Fixed room for up to three replies, so scrubbing never resizes the card. */
-  min-height: 4.6em;
 }
 .replay-replies li {
   display: flex;
@@ -1464,10 +1474,19 @@
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
+/*
+ * The caption and the detectives' replies share one region. It takes whatever height the rest of the right
+ * column leaves (but never less than --notes-min), and scrolls if a turn has more to say than fits. The
+ * row's height never depends on how much text a turn has, so scrubbing the timeline can't resize the
+ * card. --notes-min holds the longest caption (four lines) and a couple of replies.
+ */
+.replay-scroll {
+  flex: 1 1 0;
+  min-height: var(--notes-min);
+  overflow-y: auto;
+}
 .replay-caption {
   margin: 0;
-  /* Three lines: the longest turn summary (entry, a theft and a sabotage) still fits. */
-  min-height: 3.9em;
   line-height: 1.3;
 }
 .standings ol {
@@ -1500,6 +1519,13 @@
   margin: 0;
 }
 
+/* Tall windows have room to show a full round of replies (three detectives) without scrolling. */
+@media (min-height: 800px) {
+  .round-card {
+    --notes-min: 13em;
+  }
+}
+
 /* Short windows (a laptop with browser chrome): trade a little breathing room for staying on one screen. */
 @media (max-height: 680px) {
   .round-over {
@@ -1519,12 +1545,6 @@
   .replay-notes,
   .round-body {
     gap: 6px;
-  }
-  .replay-caption {
-    min-height: 3.6em;
-  }
-  .replay-replies {
-    min-height: 3.8em;
   }
   .standings ol {
     gap: 3px;

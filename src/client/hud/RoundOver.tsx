@@ -72,25 +72,27 @@ export function RoundOver({ view, game }: { view: RoomView; game: GameView }) {
         />
         Show the detectives' moves
       </label>
-      <p className="small muted replay-caption">
-        {step
-          ? `${step.entry ? `Entered by ${slotLabel(board, step.entry)}, ` : ""}moved ${step.path.length}${step.stole !== undefined ? `, stole "${ARTWORKS[step.stole].title}"` : ""}${step.disabledCamera ? `, disabled camera ${step.disabledCamera}` : ""}${step.cutPower ? ", cut the power" : ""}${step.triedLock ? `, tried lock ${step.triedLock.slot.toUpperCase()} (${step.triedLock.face})` : ""}${step.public ? " (in plain sight)" : ""}.`
-          : "Scrub through the thief's secret path."}
-      </p>
-      {showDetectives && (
-        <ul className="replay-replies small" aria-label="What the detectives did next">
-          {replies.length === 0 ? (
-            <li className="muted">{turn === 0 ? "The detectives are at their posts." : "The detectives did nothing of note."}</li>
-          ) : (
-            replies.map((l) => (
-              <li key={l.seq} data-tone={l.tone}>
-                <i className="replay-dot" style={{ background: l.hex ?? "var(--moon-200)" }} />
-                {l.text}
-              </li>
-            ))
-          )}
-        </ul>
-      )}
+      <div className="replay-scroll scroll">
+        <p className="small muted replay-caption">
+          {step
+            ? `${step.entry ? `Entered by ${slotLabel(board, step.entry)}, ` : ""}moved ${step.path.length}${step.stole !== undefined ? `, stole "${ARTWORKS[step.stole].title}"` : ""}${step.disabledCamera ? `, disabled camera ${step.disabledCamera}` : ""}${step.cutPower ? ", cut the power" : ""}${step.triedLock ? `, tried lock ${step.triedLock.slot.toUpperCase()} (${step.triedLock.face})` : ""}${step.public ? " (in plain sight)" : ""}.`
+            : "Scrub through the thief's secret path."}
+        </p>
+        {showDetectives && (
+          <ul className="replay-replies small" aria-label="What the detectives did next">
+            {replies.length === 0 ? (
+              <li className="muted">{turn === 0 ? "The detectives are at their posts." : "The detectives did nothing of note."}</li>
+            ) : (
+              replies.map((l) => (
+                <li key={l.seq} data-tone={l.tone}>
+                  <i className="replay-dot" style={{ background: l.hex ?? "var(--moon-200)" }} />
+                  {l.text}
+                </li>
+              ))
+            )}
+          </ul>
+        )}
+      </div>
     </div>
   );
 

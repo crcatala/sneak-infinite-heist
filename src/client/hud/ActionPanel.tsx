@@ -373,11 +373,12 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
           {canMove && moveDest !== null && (
             <>
               <span className="spacer" />
-              <button className="btn small ghost" onClick={() => set({ moveDest: null })}>
+              <button className="btn small ghost" {...tip("Undo", "Forget the chosen space and pick another.", "Esc", "top")} onClick={() => set({ moveDest: null })}>
                 Undo <span className="kbd">Esc</span>
               </button>
               <button
                 className="btn small primary"
+                {...tip("Move here", "Walk your pawn to the chosen space.", "Enter", "top")}
                 onClick={() => {
                   send({ t: "game", action: { a: "move", dest: moveDest } });
                   set({ moveDest: null });
@@ -459,10 +460,10 @@ function DetectiveCards({ game, send, canMove, canAct }: { game: GameView; send:
               </span>
               <b>{eyeTarget === "self" ? "Use my eyes?" : `Ask camera ${eyeTarget}?`}</b>
               <span className="spacer" />
-              <button className="btn small ghost" onClick={cancelEye}>
+              <button className="btn small ghost" {...tip("Cancel", "Pick a different way to look.", "Esc", "top")} onClick={cancelEye}>
                 Cancel <span className="kbd">Esc</span>
               </button>
-              <button className="btn small primary" autoFocus onClick={() => act({ t: "game", action: { a: "eye", target: eyeTarget } })}>
+              <button className="btn small primary" autoFocus {...tip(eyeTarget === "self" ? "Look" : `Check camera ${eyeTarget}`, "Spend your action on this.", "Enter", "top")} onClick={() => act({ t: "game", action: { a: "eye", target: eyeTarget } })}>
                 <Icon name="check" size={16} /> {eyeTarget === "self" ? "Look" : `Check camera ${eyeTarget}`} <span className="kbd">Enter</span>
               </button>
             </div>
