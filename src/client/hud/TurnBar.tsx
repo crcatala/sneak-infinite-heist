@@ -6,6 +6,7 @@ import { character, THIEF } from "../../shared/characters";
 import type { GameView } from "../../shared/game/views";
 import type { RoomView } from "../../shared/protocol";
 import { Icon } from "../components/Icon";
+import { tip } from "../components/Tip";
 import { VolumeControl } from "../components/VolumeControl";
 import { activePawn, pawnName, playerName } from "../game/derive";
 import { useGameUi, type CameraPreset } from "../game/uiStore";
@@ -59,24 +60,67 @@ export function TurnBar({ view, game }: { view: RoomView; game: GameView }) {
   };
   const iAmThief = view.role === "thief";
   const heatOn = game.rules.assist === "overlay" && view.role === "detective";
+  const dawn = game.rules.dawnAfterThiefTurns;
+  const powerLabel = game.power.cut ? (iAmThief && !game.power.discovered ? "Power cut (secret)" : "Power out") : "Power on";
 
   return (
     <header className="turnbar">
-      <div className="turnbar-stats">
-        <span className="chip gold" title="Thief turns">
+      <div className="turnbar-stats" role="group" aria-label="Thief stats">
+        <span
+          className="chip gold"
+          tabIndex={0}
+          aria-label={`Thief turns: ${game.thief.turns}${dawn > 0 ? ` of ${dawn}` : ""}`}
+          {...tip(
+            "Thief turns",
+            dawn > 0
+              ? `How many moves the thief has made this round. If they're still free after turn ${dawn}, dawn breaks and the detectives win.`
+              : "How many moves the thief has made this round. The longer it runs, the more the detectives learn.",
+          )}
+        >
           <Icon name="footprints" size={14} /> T{game.thief.turns}
-          {game.rules.dawnAfterThiefTurns > 0 && `/${game.rules.dawnAfterThiefTurns}`}
+          {dawn > 0 && `/${dawn}`}
         </span>
-        <span className="chip gold" title="Paintings stolen (as far as you know)">
+        <span
+          className="chip gold"
+          tabIndex={0}
+          aria-label={`Paintings stolen: ${game.thief.haul} of ${game.rules.minPaintingsToEscape} needed`}
+          {...tip(
+            "Paintings stolen",
+            iAmThief
+              ? `You need ${game.rules.minPaintingsToEscape} paintings before an exit will let you out. Step onto one to take it.`
+              : `The thief needs ${game.rules.minPaintingsToEscape} paintings before they can escape. This counts the ones you know have gone.`,
+          )}
+        >
           <Icon name="frame" size={14} /> {game.thief.haul}/{game.rules.minPaintingsToEscape}
         </span>
-        <span className="chip" title="Wire snips left">
+        <span
+          className="chip"
+          tabIndex={0}
+          aria-label={`Wire snips left: ${game.thief.snipsLeft}`}
+          {...tip("Wire snips left", "When motion detectors go off, the thief can snip the wires instead of telling you their floor colour. Only 2 snips per round, and everyone sees them.")}
+        >
           <Icon name="scissors" size={14} /> {game.thief.snipsLeft}
         </span>
-        <span className={`chip ${game.power.cut ? "alarm" : "mint"}`} title={game.power.cut ? (iAmThief && !game.power.discovered ? "Power cut (secret)" : "Power out") : "Power on"}>
+        <span
+          className={`chip ${game.power.cut ? "alarm" : "mint"}`}
+          tabIndex={0}
+          aria-label={`Power: ${powerLabel}`}
+          {...tip(
+            powerLabel,
+            game.power.cut
+              ? iAmThief && !game.power.discovered
+                ? "You cut it, and no one has noticed yet. Cameras and motion detectors are dead until a detective steps on the power switch."
+                : "Cameras and motion detectors don't work. A detective can restore it by ending a move on the power switch."
+              : "Cameras and motion detectors are working. The thief can cut the power from the switch in the Power Room.",
+          )}
+        >
           <Icon name="bolt" size={14} /> {game.power.cut ? (iAmThief && !game.power.discovered ? "Cut 🔒" : "Out") : "On"}
         </span>
-        {game.thief.revealed && game.phase === "play" && <span className="chip alarm pulse">CHASE</span>}
+        {game.thief.revealed && game.phase === "play" && (
+          <span className="chip alarm pulse" tabIndex={0} {...tip("Chase!", "A detective spotted the thief. Their pawn stays on the board and every move is public, and paintings vanish the moment they land on one.")}>
+            CHASE
+          </span>
+        )}
       </div>
 
       <div data-hud="band" className={`turnbar-main${turn.mine ? " mine" : ""}`} style={{ ["--c" as string]: turn.colour }} aria-live="polite">
@@ -90,36 +134,60 @@ export function TurnBar({ view, game }: { view: RoomView; game: GameView }) {
 
       <div className="turnbar-tools">
         <div className="seg compact" role="group" aria-label="Camera">
-          <button aria-pressed={ui.camera === "overview"} onClick={() => setCam("overview")} title="Overview (1)">
+          <button aria-pressed={ui.camera === "overview"} onClick={() => setCam("overview")} {...tip("Overview", "The whole museum from a three-quarter angle.", "1")}>
             1
           </button>
-          <button aria-pressed={ui.camera === "top"} onClick={() => setCam("top")} title="Top-down (2 / T)">
+          <button aria-pressed={ui.camera === "top"} onClick={() => setCam("top")} {...tip("Top-down", "A straight-down map view, easiest for counting spaces.", "2 / T")}>
             2
           </button>
-          <button aria-pressed={ui.camera === "focus"} onClick={() => setCam("focus")} title="Focus on my pawn (F)">
+          <button aria-pressed={ui.camera === "focus"} onClick={() => setCam("focus")} {...tip("Focus", "Zoom in close on your own pawn.", "F")}>
             F
           </button>
         </div>
         {iAmThief && (
-          <button className={`btn small icon ${ui.danger ? "danger" : ""}`} aria-pressed={ui.danger} title="Danger overlay (D)" onClick={() => ui.set({ danger: !ui.danger })}>
+          <button
+            className={`btn small icon ${ui.danger ? "danger" : ""}`}
+            aria-pressed={ui.danger}
+            aria-label="Danger overlay"
+            {...tip("Danger overlay", "Marks the spaces cameras and detectives can see right now, so you know where not to end a move.", "D")}
+            onClick={() => ui.set({ danger: !ui.danger })}
+          >
             <Icon name="eye" size={18} />
           </button>
         )}
         {heatOn && (
-          <button className={`btn small icon ${ui.heat ? "primary" : ""}`} aria-pressed={ui.heat} title="Possible thief locations (H)" onClick={() => ui.set({ heat: !ui.heat })}>
+          <button
+            className={`btn small icon ${ui.heat ? "primary" : ""}`}
+            aria-pressed={ui.heat}
+            aria-label="Possible thief locations"
+            {...tip("Where could they be?", "Shades the spaces the thief could be in, darker where it's more likely, based on everything the team has learned.", "H")}
+            onClick={() => ui.set({ heat: !ui.heat })}
+          >
             <Icon name="target" size={18} />
           </button>
         )}
         {iAmThief && (
-          <button className={`btn small icon ${ui.padOpen ? "primary" : ""}`} aria-pressed={ui.padOpen} title="Plotting pad (P)" onClick={() => ui.set({ padOpen: !ui.padOpen })}>
+          <button
+            className={`btn small icon ${ui.padOpen ? "primary" : ""}`}
+            aria-pressed={ui.padOpen}
+            aria-label="Plotting pad"
+            {...tip("Plotting pad", "Your secret map: your trail, the paintings, camera status and your snips. Nobody else sees it.", "P")}
+            onClick={() => ui.set({ padOpen: !ui.padOpen })}
+          >
             <Icon name="pad" size={18} />
           </button>
         )}
-        <button className={`btn small icon ${ui.logOpen ? "primary" : ""}`} aria-pressed={ui.logOpen} title="Log (L)" onClick={() => ui.set({ logOpen: !ui.logOpen })}>
+        <button
+          className={`btn small icon ${ui.logOpen ? "primary" : ""}`}
+          aria-pressed={ui.logOpen}
+          aria-label="Case notes"
+          {...tip("Case notes", "A running log of everything that's happened this round.", "L")}
+          onClick={() => ui.set({ logOpen: !ui.logOpen })}
+        >
           <Icon name="layers" size={18} />
         </button>
         <VolumeControl />
-        <button className="btn small icon" title="Menu (Esc)" aria-label="Menu" onClick={() => ui.set({ paused: true })}>
+        <button className="btn small icon" aria-label="Menu" {...tip("Menu", "Pause menu: settings, how to play, leave the room. The game keeps going for everyone else.", "Esc")} onClick={() => ui.set({ paused: true })}>
           <Icon name="gear" size={18} />
         </button>
       </div>
@@ -141,7 +209,7 @@ export function ClockChip({ view }: { view: RoomView }) {
   const secs = Math.ceil(left / 1000);
   const low = secs <= 10 && clock.deadline !== null;
   return (
-    <span className={`chip clock ${low ? "alarm pulse" : "dim"}`} title={clock.deadline === null ? "Paused" : "Time left"}>
+    <span className={`chip clock ${low ? "alarm pulse" : "dim"}`} {...tip(clock.deadline === null ? "Timer paused" : "Time left", "The host's turn timer. When it runs out, a bot finishes the turn for you.", undefined, "bottom")}>
       <Icon name="timer" size={14} /> {clock.deadline === null ? "paused" : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`}
     </span>
   );

@@ -6,6 +6,7 @@
 import { colourOf, getBoard, xyOf, type Cell } from "../../shared/board/model";
 import type { GameView } from "../../shared/game/views";
 import { Icon } from "../components/Icon";
+import { tip } from "../components/Tip";
 import { useGameUi } from "../game/uiStore";
 import { FLOOR_HEX } from "../scene/textures";
 
@@ -174,14 +175,14 @@ export function ThiefPad({ game }: { game: GameView }) {
     <aside className="thief-pad" data-hud="side" aria-label="Plotting pad">
       <div className="pad-head">
         <span className="pad-title">Plotting pad</span>
-        <span className="pad-secret">🔒 only you</span>
-        <button className="btn small icon ghost pad-close" aria-label="Close pad" onClick={() => set({ padOpen: false })}>
+        <span className="pad-secret" {...tip("Private to you", "Your trail is hidden from the detectives. Only you can see this pad.")}>🔒 only you</span>
+        <button className="btn small icon ghost pad-close" aria-label="Close pad" {...tip("Close the pad", undefined, "P")} onClick={() => set({ padOpen: false })}>
           <Icon name="x" size={16} />
         </button>
       </div>
       <PadMap game={game} />
       <div className="pad-foot">
-        <div className="pad-snips" title="Motion-detector snips">
+        <div className="pad-snips" {...tip("Wire snips", `When motion detectors go off you can snip the wires instead of telling the detectives your floor colour. ${game.thief.snipsLeft} of 2 left.`)}>
           {[0, 1].map((i) => (
             <span key={i} className={`pad-m${i >= game.thief.snipsLeft ? " used" : ""}`}>
               M
@@ -195,16 +196,23 @@ export function ThiefPad({ game }: { game: GameView }) {
             const setup = game.phase.startsWith("setup");
             const dead = !setup && (!cam || cam.disabled);
             return (
-              <span key={n} className={`pad-cam${dead ? " dead" : ""}`} title={!cam ? `Camera ${n}: removed` : cam.disabled ? `Camera ${n}: disabled` : `Camera ${n}: working`}>
+              <span
+                key={n}
+                className={`pad-cam${dead ? " dead" : ""}`}
+                {...tip(
+                  !cam ? `Camera ${n}: removed` : cam.disabled ? `Camera ${n}: disabled` : `Camera ${n}: working`,
+                  !cam ? "A detective's scan found it dead and took it down." : cam.disabled ? "You disabled it. The detectives won't know until they check it." : "Still watching. End a move on it to secretly disable it.",
+                )}
+              >
                 {n}
               </span>
             );
           })}
         </div>
-        <div className={`pad-power${game.power.cut ? " cut" : ""}`}>
+        <div className={`pad-power${game.power.cut ? " cut" : ""}`} {...tip("Power", game.power.cut ? "Cameras and motion detectors are out until a detective restores the power." : "End a move on the power switch (P) to secretly cut it. That kills cameras and motion detectors.")}>
           <Icon name="bolt" size={16} /> {game.power.cut ? (game.power.discovered ? "Power out (found)" : "Power cut (secret)") : "Power on"}
         </div>
-        <div className="pad-haul">
+        <div className="pad-haul" {...tip("Paintings", `You need ${game.rules.minPaintingsToEscape} to escape. A painting you step onto leaves the wall at the start of your next turn.`)}>
           <Icon name="frame" size={16} /> {game.thief.haul} stolen{game.thief.pending != null ? " (1 still on the wall)" : ""}
         </div>
       </div>

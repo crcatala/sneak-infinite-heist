@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
 import { DebugConsole } from "./debug/DebugConsole";
 import { Toasts } from "./components/Toasts";
+import { TipLayer } from "./components/Tip";
 import { usePrefs, useReducedMotion } from "./prefs";
 import { roomCodeFromPath, usePath } from "./router";
 import { Title } from "./screens/Title";
@@ -55,6 +56,7 @@ export function App({ inviteCaptured }: { inviteCaptured: boolean }) {
         {path === "/solo" ? <SoloScreen /> : path === "/how-to-play" ? <HowToPlay /> : code ? <RoomScreen code={code} /> : <Title />}
       </Suspense>
       <Toasts />
+      <TipLayer />
       <DebugConsole />
     </>
   );

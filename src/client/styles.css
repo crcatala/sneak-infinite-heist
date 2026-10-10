@@ -729,3 +729,107 @@ input[type="range"]::-moz-range-thumb {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* --- tooltips (components/Tip.tsx) ---------------------------------------------------------------- */
+
+.tip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 90;
+  width: max-content;
+  max-width: min(272px, 80vw);
+  padding: 8px 12px 9px;
+  border-radius: 14px;
+  background: var(--night-950);
+  border: 2px solid var(--night-600);
+  /* Same solid lip as the buttons, so it reads as one more plastic piece. */
+  box-shadow:
+    0 4px 0 rgba(0, 0, 0, 0.45),
+    0 14px 30px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+}
+.tip[data-open="true"] {
+  visibility: visible;
+  opacity: 1;
+  animation: tip-in var(--d-micro) var(--e-sneak);
+}
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    translate: 0 -5px;
+  }
+}
+.tip[data-side="top"][data-open="true"] {
+  animation-name: tip-in-up;
+}
+@keyframes tip-in-up {
+  from {
+    opacity: 0;
+    translate: 0 5px;
+  }
+}
+/* The caret points back at the element that opened it. */
+.tip::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--arrow, 24px) - 6px);
+  width: 10px;
+  height: 10px;
+  background: var(--night-950);
+  border: 2px solid var(--night-600);
+  transform: rotate(45deg);
+}
+.tip[data-side="bottom"]::before {
+  top: -7px;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+}
+.tip[data-side="top"]::before {
+  bottom: -7px;
+  border-left-color: transparent;
+  border-top-color: transparent;
+}
+.tip-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tip-title {
+  flex: 1;
+  font-family: var(--f-head);
+  font-weight: 600;
+  font-size: calc(0.95rem * var(--ui-scale));
+  line-height: 1.2;
+  color: var(--lamp-300);
+}
+.tip-key {
+  flex: none;
+  font-family: var(--f-body);
+  font-size: calc(0.7rem * var(--ui-scale));
+  font-weight: 800;
+  line-height: 1.5;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1.5px solid var(--night-500);
+  background: var(--night-700);
+  color: var(--moon-200);
+}
+.tip-body {
+  margin: 3px 0 0;
+  font-size: calc(0.8rem * var(--ui-scale));
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--moon-200);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip[data-open="true"] {
+    animation: none;
+  }
+}
+body.reduced-motion .tip[data-open="true"] {
+  animation: none;
+}

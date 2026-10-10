@@ -6,6 +6,7 @@ import { MOTION_RESPONSE_MS } from "../../shared/game/config";
 import type { GameView } from "../../shared/game/views";
 import { EMOTES, type RoomView } from "../../shared/protocol";
 import { Icon } from "../components/Icon";
+import { tip } from "../components/Tip";
 import { activePawn, pawnHex, pawnName } from "../game/derive";
 import { buildLog, relativeTime, type LogLine, type Part } from "../game/narrate";
 import { skipFx, useFx } from "../game/present";
@@ -169,7 +170,7 @@ export function LogPanel({ view, game }: { view: RoomView; game: GameView }) {
         <b>Case notes</b>
         {game.phase === "roundOver" && <span className="chip gold">Full log revealed</span>}
         <span className="spacer" />
-        <button className="btn small icon ghost" aria-label="Close log" onClick={() => set({ logOpen: false })}>
+        <button className="btn small icon ghost" aria-label="Close log" {...tip("Close the log", undefined, "L")} onClick={() => set({ logOpen: false })}>
           <Icon name="x" size={16} />
         </button>
       </div>
@@ -192,7 +193,7 @@ export function LogPanel({ view, game }: { view: RoomView; game: GameView }) {
             <div className={`log-group${g.actor === "thief" ? " is-thief" : g.actor === "setup" ? " is-setup" : " is-det"}`} style={g.actor === "thief" || g.actor === "setup" ? undefined : { ["--c" as string]: pawnHex(game, g.actor) }}>
               {g.lines.map((l) => (
                 <div key={l.seq} className={`log-line tone-${l.tone}${l.secret ? " secret" : ""}${l.seq === lastSeq ? " latest" : ""}${l.at && now - l.at < 4000 ? " fresh" : ""}`} data-kind={l.kind}>
-                  <span className="log-ico" title={l.secret ? "Only you know this" : undefined}>
+                  <span className="log-ico" {...(l.secret ? tip("Secret", "Only you know this. The other team can't see it.") : {})}>
                     <Icon name={l.icon} size={16} />
                     {l.secret && <Icon name="lock" size={10} className="log-lock" />}
                   </span>
@@ -234,7 +235,7 @@ export function PointerToggle() {
     <button
       className={`btn small pointer-toggle${mark ? " on" : ""}`}
       aria-pressed={mark}
-      title="What a long-press drops on the board"
+      {...tip("Long-press mode", mark ? "A long-press drops a lasting suspect mark where you think the thief might be." : "A long-press drops a pin your whole team sees.", undefined, "top")}
       onClick={() => {
         set({ pointerMode: mark ? "pin" : "mark" });
         sfx.menuMove();
@@ -276,7 +277,7 @@ export function EmoteBar({ view }: { view: RoomView }) {
               {em}
             </button>
           ))}
-        <button className="btn small icon" aria-label="Emotes" title="Emotes" onClick={() => setOpen((v) => !v)}>
+        <button className="btn small icon" aria-label="Emotes" {...tip("Emotes", "Send a quick reaction to the table.", undefined, "top")} onClick={() => setOpen((v) => !v)}>
           😀
         </button>
       </div>
