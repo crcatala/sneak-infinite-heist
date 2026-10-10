@@ -24,6 +24,49 @@ export function cycle(focus: number, dir: 1 | -1, n: number): number {
   return (((focus + dir) % n) + n) % n;
 }
 
+/** Which way a horizontal drag of `dx` px swipes the carousel: dragging left brings the next detective (1), right the previous (-1). 0 = too short to count. */
+export function swipeDir(dx: number, threshold = 40): 1 | -1 | 0 {
+  if (Math.abs(dx) <= threshold) return 0;
+  return dx < 0 ? 1 : -1;
+}
+
+/**
+ * Where keyboard focus is, as far as the lobby's shortcuts care. `idle` is nothing focused (the state after a
+ * mouse click, which the lobby blurs on purpose, and the state a gamepad lives in). `other` is any focused
+ * control, which keeps its own Enter and Space behaviour.
+ */
+export type LobbyFocus = "idle" | "input" | "other";
+
+export type LobbyKeyAction = "prev" | "next" | "choose" | "ready" | "leave" | "closeSheet" | null;
+
+export interface LobbyKeyContext {
+  focus: LobbyFocus;
+  /** The rules sheet is open on top. */
+  sheet: boolean;
+  /** There is a carousel to browse (not a solo thief). */
+  canBrowse: boolean;
+  /** The browsed detective can be chosen right now (seated, and not taken by someone else). */
+  canChoose: boolean;
+}
+
+/**
+ * What a key press does in the lobby. Arrows and R work wherever focus is. Enter (choose) and Space (ready)
+ * only act when nothing is focused, so they never hijack a focused button; the gamepad's A and X arrive as
+ * Enter and Space.
+ */
+export function lobbyKey(key: string, ctx: LobbyKeyContext): LobbyKeyAction {
+  if (ctx.focus === "input") return null;
+  if (key === "Escape") return ctx.sheet ? "closeSheet" : "leave";
+  if (ctx.sheet) return null;
+  if (key === "r" || key === "R") return "ready";
+  if (key === "ArrowLeft") return ctx.canBrowse ? "prev" : null;
+  if (key === "ArrowRight") return ctx.canBrowse ? "next" : null;
+  if (ctx.focus !== "idle") return null;
+  if (key === " ") return "ready";
+  if (key === "Enter") return ctx.canBrowse && ctx.canChoose ? "choose" : null;
+  return null;
+}
+
 /** Which first-time hint arrow the lobby shows. Stored as two booleans so each step is remembered on its own. */
 export interface HintProgress {
   picked: boolean;

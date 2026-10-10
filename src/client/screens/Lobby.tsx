@@ -19,7 +19,7 @@ import { Icon } from "../components/Icon";
 import { Logo } from "../components/Logo";
 import { VolumeControl } from "../components/VolumeControl";
 import { withAlias } from "../identity";
-import { cycle, flowPose, hintStep, ringOffset } from "../lobbyFlow";
+import { cycle, flowPose, hintStep, lobbyKey, ringOffset, swipeDir, type LobbyFocus } from "../lobbyFlow";
 import { useLobbyHints } from "../lobbyHints";
 import { navigate } from "../router";
 import { sfx } from "../sfx";
@@ -73,21 +73,19 @@ export function Lobby() {
   // Keyboard and gamepad (the gamepad layer turns the D-pad, A and X into these keys).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey) return;
       const el = e.target as HTMLElement;
-      if (el.tagName === "INPUT" || e.metaKey || e.ctrlKey) return;
-      if (e.key === "Escape") {
-        if (sheet) setSheet(false);
-        else leave();
-        return;
-      }
-      if (sheet) return;
-      const idle = el === document.body;
-      if (e.key === "r" || e.key === "R" || (e.key === " " && idle)) {
+      const focus: LobbyFocus = el.tagName === "INPUT" || el.tagName === "TEXTAREA" ? "input" : el === document.body ? "idle" : "other";
+      const action = lobbyKey(e.key, { focus, sheet, canBrowse: !soloThief, canChoose: !watching && !takenBy(view.players, browse, view.you) });
+      if (!action) return;
+      if (action === "leave") leave();
+      else if (action === "closeSheet") setSheet(false);
+      else {
         e.preventDefault();
-        toggleReady();
-      } else if (!soloThief && e.key === "ArrowLeft") move(-1);
-      else if (!soloThief && e.key === "ArrowRight") move(1);
-      else if (!soloThief && e.key === "Enter" && idle && !watching && !takenBy(view.players, browse, view.you)) choose(browse);
+        if (action === "ready") toggleReady();
+        else if (action === "choose") choose(browse);
+        else move(action === "prev" ? -1 : 1);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -159,6 +157,14 @@ export function Lobby() {
       </div>
     </div>
   );
+}
+
+/**
+ * After a mouse or touch click, drop focus from the control so it can't swallow the next Enter or Space.
+ * (Keyboard activation reports `detail` 0 and keeps its focus, as it should.)
+ */
+function dropMouseFocus(e: { detail: number; currentTarget: HTMLElement }) {
+  if (e.detail > 0) e.currentTarget.blur();
 }
 
 const takenBy = (players: Player[], id: DetectiveColour, me: string | null) => players.find((p) => p.character === id && p.id !== me);
@@ -321,7 +327,9 @@ function DetectiveStage({ browse, setBrowse, move, choose, step, solo }: { brows
   const c = CHARACTERS[focus];
   const owner = takenBy(view.players, browse, view.you);
   const mine = me?.character === browse;
-  const drag = useRef<{ x: number; moved: boolean } | null>(null);
+  const drag = useRef<number | null>(null);
+  // A swipe that starts and ends on the same portrait still fires a click; swallow that one.
+  const swiped = useRef(false);
   const soloLine = solo ? "Track down a bot thief. Land on the thief to make the arrest." : null;
 
   return (
@@ -329,22 +337,39 @@ function DetectiveStage({ browse, setBrowse, move, choose, step, solo }: { brows
       <div
         className="lb-carousel"
         style={{ ["--c" as string]: c.hex }}
-        onPointerDown={(e) => (drag.current = { x: e.clientX, moved: false })}
+        onPointerDown={(e) => {
+          drag.current = e.clientX;
+          swiped.current = false;
+        }}
         onPointerUp={(e) => {
-          const d = drag.current;
+          const dir = drag.current === null ? 0 : swipeDir(e.clientX - drag.current);
           drag.current = null;
-          if (d && Math.abs(e.clientX - d.x) > 40) {
-            d.moved = true;
-            move(e.clientX < d.x ? 1 : -1);
+          if (dir) {
+            swiped.current = true;
+            move(dir);
           }
         }}
         onPointerCancel={() => (drag.current = null)}
       >
         <div className="lb-stagelight" />
-        <button className={`lb-arrow l${step === "pick" ? " nudge" : ""}`} onClick={() => move(-1)} aria-label="Previous detective">
+        <button
+          className={`lb-arrow l${step === "pick" ? " nudge" : ""}`}
+          onClick={(e) => {
+            move(-1);
+            dropMouseFocus(e);
+          }}
+          aria-label="Previous detective"
+        >
           <Icon name="back" size={22} />
         </button>
-        <button className={`lb-arrow r${step === "pick" ? " nudge" : ""}`} onClick={() => move(1)} aria-label="Next detective">
+        <button
+          className={`lb-arrow r${step === "pick" ? " nudge" : ""}`}
+          onClick={(e) => {
+            move(1);
+            dropMouseFocus(e);
+          }}
+          aria-label="Next detective"
+        >
           <Icon name="back" size={22} className="flip" />
         </button>
         {CHARACTERS.map((x, i) => {
@@ -356,11 +381,16 @@ function DetectiveStage({ browse, setBrowse, move, choose, step, solo }: { brows
               key={x.id}
               className={`lb-cf${d === 0 ? " sel" : ""}${Math.abs(d) > 2 ? " far" : ""}${o ? " taken" : ""}`}
               style={{ ["--d" as string]: d, ["--c" as string]: x.hex, ["--s" as string]: pose.scale, ["--o" as string]: pose.opacity, ["--br" as string]: pose.brightness, zIndex: pose.z }}
-              onClick={() => {
-                if (!drag.current?.moved && d !== 0) {
+              onClick={(e) => {
+                if (swiped.current) {
+                  swiped.current = false;
+                  return;
+                }
+                if (d !== 0) {
                   setBrowse(x.id);
                   sfx.menuMove();
-                }
+                } else if (!o && me) choose(x.id);
+                dropMouseFocus(e);
               }}
               tabIndex={d === 0 ? 0 : -1}
               aria-label={`${x.name}${o ? `, taken by ${o.name}` : me?.character === x.id ? ", your detective" : ""}`}
@@ -385,7 +415,13 @@ function DetectiveStage({ browse, setBrowse, move, choose, step, solo }: { brows
               <Icon name="eye" /> Watching
             </button>
           ) : mine ? (
-            <button className="btn big mint" onClick={() => choose(c.id)}>
+            <button
+              className="btn big mint"
+              onClick={(e) => {
+                choose(c.id);
+                dropMouseFocus(e);
+              }}
+            >
               <Icon name="check" /> Your detective
             </button>
           ) : owner ? (
@@ -393,7 +429,13 @@ function DetectiveStage({ browse, setBrowse, move, choose, step, solo }: { brows
               Taken by {owner.name}
             </button>
           ) : (
-            <button className="btn big primary" onClick={() => choose(c.id)}>
+            <button
+              className="btn big primary"
+              onClick={(e) => {
+                choose(c.id);
+                dropMouseFocus(e);
+              }}
+            >
               Choose {c.short}
             </button>
           )}
@@ -467,6 +509,8 @@ function RulesSheet({ isHost, onClose }: { isHost: boolean; onClose: () => void 
   // Focus moves into the sheet, stays inside it, and goes back to the button that opened it.
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
+    // Only hand focus back if the sheet was opened from the keyboard; a mouse click shouldn't leave the button focused.
+    const keyboardOpened = !!opener?.matches?.(":focus-visible");
     sheet.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     const trap = (e: KeyboardEvent) => {
       if (e.key !== "Tab" || !sheet.current) return;
@@ -485,7 +529,8 @@ function RulesSheet({ isHost, onClose }: { isHost: boolean; onClose: () => void 
     document.addEventListener("keydown", trap);
     return () => {
       document.removeEventListener("keydown", trap);
-      opener?.focus?.();
+      if (keyboardOpened) opener?.focus?.();
+      else (document.activeElement as HTMLElement | null)?.blur?.();
     };
   }, []);
 

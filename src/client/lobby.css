@@ -39,6 +39,9 @@
   z-index: 1;
   flex: 1;
   min-height: 0;
+  /* Desktop windows fit with room to spare. When a phone, a tall narrow window or a big UI scale doesn't, the
+     lobby scrolls (ready button pinned) instead of squeezing the carousel and the Choose button away. */
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   font-size: calc(var(--u) * var(--ui-scale));
@@ -133,7 +136,7 @@
 .lb-main {
   position: relative;
   flex: 1;
-  min-height: 0;
+  min-height: min-content;
   display: flex;
   flex-direction: column;
   gap: 0.4em;
@@ -397,7 +400,7 @@ button.lb-who-btn:hover .lb-avatar {
   --c: #fff;
   position: relative;
   flex: 1;
-  min-height: 0;
+  min-height: 11em;
   container-type: size;
   touch-action: pan-y;
 }
@@ -655,8 +658,9 @@ div.lb-cf {
 /* --- bottom bar --------------------------------------------------------------------------------- */
 
 .lobby-ready {
-  position: relative;
   z-index: 3;
+  position: sticky;
+  bottom: 0;
   flex: none;
   display: flex;
   align-items: center;
@@ -908,7 +912,7 @@ div.lb-cf {
     margin-bottom: 0.2em;
   }
   .hand-note .hand-text {
-    max-width: 16em;
+    max-width: min(14em, 88cqw);
     text-align: center;
   }
   .hand-note.right .hand-arrow {
@@ -916,24 +920,6 @@ div.lb-cf {
   }
   .hand-note.above .hand-arrow {
     margin-right: 0;
-  }
-}
-
-/* Very short screens (a phone on its side): stop squeezing and let the lobby scroll instead. */
-@media (max-height: 520px) {
-  .lobby-body {
-    overflow-y: auto;
-  }
-  .lb-main {
-    flex: none;
-  }
-  .lb-carousel {
-    flex: none;
-    height: 15em;
-  }
-  .lobby-ready {
-    position: sticky;
-    bottom: 0;
   }
 }
 
