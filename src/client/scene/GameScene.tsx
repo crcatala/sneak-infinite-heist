@@ -227,7 +227,7 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
       {ix.markers.map((m, i) => (
         <Marker key={`m${m.cell}${i}`} board={board} cell={m.cell} label={m.label} colour={m.colour} />
       ))}
-      {ix.path && <PathDots board={board} from={ix.path.from} path={ix.path.path} />}
+      {ix.path && <PathDots board={board} from={ix.path.from} path={ix.path.path} colour={ix.path.colour} />}
       {spots.map((s) => (
         <SpotColumn key={s.id} board={board} cell={s.cells[0]} />
       ))}
