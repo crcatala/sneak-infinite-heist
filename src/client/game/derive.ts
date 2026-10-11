@@ -46,6 +46,19 @@ export function cellLabel(board: Board, c: Cell): string {
   return r ? regionName(board, r) : "outside";
 }
 
+/**
+ * Cameras that were found dead and taken out of play. The views drop them, but the start-of-play
+ * event is public and remembers where every camera stood, so the table can keep marking the spot.
+ */
+export function removedCameras(game: GameView): { n: number; cell: Cell }[] {
+  const start = game.events.find((e) => e.type === "playStarted");
+  if (!start || start.type !== "playStarted") return [];
+  const onBoard = new Set(game.cameras.map((c) => c.n));
+  return Object.entries(start.cameras)
+    .filter(([n]) => !onBoard.has(Number(n)))
+    .map(([n, cell]) => ({ n: Number(n), cell }));
+}
+
 /** Where the thief could end this turn from `start` (the entry's inside cell on the first turn). */
 export function thiefEnds(game: GameView, start: Cell): Map<Cell, Cell[]> {
   return thiefDestinations(boardOf(game), start, game.detectives.map((d) => d.cell!).filter((c) => c !== null));

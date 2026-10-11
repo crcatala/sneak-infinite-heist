@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { getBoard, type Cell } from "../../shared/board/model";
 import type { GameView } from "../../shared/game/views";
 import type { RoomView } from "../../shared/protocol";
-import { activePawn, pawnHex } from "../game/derive";
+import { activePawn, pawnHex, removedCameras } from "../game/derive";
 import type { BoardInteraction, PressAt } from "../game/interact";
 import { useFx } from "../game/present";
 import { buildReplay } from "../game/replay";
@@ -134,7 +134,18 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
       {game.paintings.map((p) => {
         const gone = p.status === "stolen";
         const lift = lifting?.painting === p.id;
-        if (gone && !lift) return null;
+        if (gone && !lift) {
+          // Stolen for good: the empty frame stays so everyone can see what was taken.
+          return (
+            <group key={`${p.id}-gone`} position={cellPos(board, p.cell)}>
+              <PopIn>
+                <FaceCamera>
+                  <PaintingPiece id={p.id} stolen />
+                </FaceCamera>
+              </PopIn>
+            </group>
+          );
+        }
         return (
           <group key={p.id} position={cellPos(board, p.cell)}>
             <PopIn>
@@ -161,9 +172,16 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
       {game.cameras.map((c) => (
         <group key={c.n} position={cellPos(board, c.cell)}>
           <PopIn>
-            <CameraPiece n={c.n} led={game.power.cut ? "off" : c.disabled ? "dead" : "on"} />
+            <CameraPiece n={c.n} state={game.power.cut ? "off" : c.disabled ? "cut" : "on"} />
           </PopIn>
           {ui.held?.kind === "piece" && ui.held.from === c.cell && <HeldGlow />}
+        </group>
+      ))}
+      {removedCameras(game).map((c) => (
+        <group key={`${c.n}-dead`} position={cellPos(board, c.cell)}>
+          <PopIn>
+            <CameraPiece n={c.n} state="dead" />
+          </PopIn>
         </group>
       ))}
       {sparks.map((s) => (

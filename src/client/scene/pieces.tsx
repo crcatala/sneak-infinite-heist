@@ -4,7 +4,7 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 import { character, type DetectiveColour } from "../../shared/characters";
-import { discTexture, glowTexture, paintingTexture, powerPlateTexture } from "./textures";
+import { deadDiscTexture, discTexture, glowTexture, paintingTexture, powerPlateTexture, stolenPaintingTexture } from "./textures";
 
 const pawnProfile = (() => {
   const pts: [number, number][] = [
@@ -244,55 +244,112 @@ export function ThiefPawn({ haul = 0, ghost = false }: { haul?: number; ghost?: 
   );
 }
 
-/** A red plus-shaped CCTV unit with its number plate and a status LED. */
-export function CameraPiece({ n, led }: { n: number; led: "on" | "off" | "dead" }) {
+/**
+ * What a camera's ring says. "on" and "cut" are lit (a cut camera still looks fine to detectives, so
+ * "cut" is only ever passed for the thief, or for everyone once the round is over); "off" is a power
+ * cut; "dead" is a camera that was found cut and taken out of play.
+ */
+export type CameraState = "on" | "cut" | "off" | "dead";
+
+const RING = { on: "#3dff8f", cut: "#8a7bff", off: "#2a2433", dead: "#2a2433" } as const;
+const DEAD_OPACITY = 0.85;
+const STOLEN_OPACITY = 0.8;
+
+/** The plus-shaped body as one extruded shape, so a see-through camera has no overlapping arms. */
+let plusGeo: THREE.ExtrudeGeometry | null = null;
+function getPlusGeo() {
+  if (!plusGeo) {
+    const L = 0.28;
+    const W = 0.1;
+    const shape = new THREE.Shape();
+    const pts: [number, number][] = [[-W, -L], [W, -L], [W, -W], [L, -W], [L, W], [W, W], [W, L], [-W, L], [-W, W], [-L, W], [-L, -W], [-W, -W]];
+    pts.forEach(([x, y], i) => (i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));
+    shape.closePath();
+    plusGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.16, bevelEnabled: false });
+    plusGeo.rotateX(-Math.PI / 2);
+  }
+  return plusGeo;
+}
+
+/** The snipped cable of a dead camera, from the end of one arm down to the floor. */
+let cableGeo: THREE.TubeGeometry | null = null;
+const CABLE_END = new THREE.Vector3(0.46, 0.012, 0.28);
+function getCableGeo() {
+  if (!cableGeo) {
+    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0.28, 0.08, 0), new THREE.Vector3(0.37, 0.05, 0.05), new THREE.Vector3(0.4, 0.015, 0.14), new THREE.Vector3(0.36, 0.012, 0.22), CABLE_END]);
+    cableGeo = new THREE.TubeGeometry(curve, 16, 0.014, 6);
+  }
+  return cableGeo;
+}
+
+/** A red plus-shaped CCTV unit with its number plate and a glowing status ring around the hub. */
+export function CameraPiece({ n, state }: { n: number; state: CameraState }) {
+  const dead = state === "dead";
+  const lit = state === "on" || state === "cut";
+  const ring = RING[state];
+  const fade = { transparent: dead, opacity: dead ? DEAD_OPACITY : 1 };
   return (
     <group>
-      {[0, Math.PI / 2].map((r) => (
-        <mesh key={r} rotation={[0, r, 0]} position={[0, 0.09, 0]} castShadow>
-          <boxGeometry args={[0.56, 0.16, 0.2]} />
-          <meshStandardMaterial color="#d8323c" roughness={0.45} flatShading />
+      <mesh geometry={getPlusGeo()} position={[0, 0.01, 0]} castShadow>
+        <meshStandardMaterial color={dead ? "#6e5258" : "#d8323c"} roughness={0.45} flatShading {...fade} />
+      </mesh>
+      {lit && (
+        <mesh position={[0, 0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.9, 0.9]} />
+          <meshBasicMaterial map={glowTexture()} color={ring} transparent opacity={0.3} depthWrite={false} blending={THREE.AdditiveBlending} />
         </mesh>
-      ))}
-      <mesh position={[0, 0.12, 0]} castShadow>
-        <cylinderGeometry args={[0.18, 0.2, 0.2, 12]} />
-        <meshStandardMaterial color="#e8404a" roughness={0.4} flatShading />
+      )}
+      <mesh position={[0, 0.195, 0]} castShadow>
+        <cylinderGeometry args={[0.18, 0.185, 0.05, 16]} />
+        <meshStandardMaterial color={dead ? "#7a5a60" : "#e8404a"} roughness={0.4} flatShading {...fade} />
+      </mesh>
+      <mesh position={[0, 0.215, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.2, 0.018, 8, 32]} />
+        <meshBasicMaterial color={ring} toneMapped={false} {...fade} />
       </mesh>
       <mesh position={[0, 0.225, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.14, 16]} />
-        <meshBasicMaterial map={discTexture(String(n))} />
+        <meshBasicMaterial map={dead ? deadDiscTexture(String(n)) : discTexture(String(n))} {...fade} />
       </mesh>
-      <mesh position={[0.2, 0.2, 0.2]}>
-        <sphereGeometry args={[0.035, 6, 6]} />
-        <meshStandardMaterial
-          color={led === "on" ? "#5cff9a" : led === "dead" ? "#ff4d6d" : "#444455"}
-          emissive={led === "on" ? "#2cff7a" : led === "dead" ? "#ff4d6d" : "#000000"}
-          emissiveIntensity={led === "off" ? 0 : 2}
-        />
-      </mesh>
+      {dead && (
+        <>
+          <mesh geometry={getCableGeo()}>
+            <meshStandardMaterial color="#1d1a28" roughness={0.6} {...fade} />
+          </mesh>
+          <mesh position={CABLE_END}>
+            <sphereGeometry args={[0.022, 6, 6]} />
+            <meshStandardMaterial color="#e0a050" metalness={0.5} roughness={0.4} {...fade} />
+          </mesh>
+        </>
+      )}
     </group>
   );
 }
 
-/** A framed painting on a little walnut gallery stand, with a warm light pool. */
-export function PaintingPiece({ id, lit = true }: { id: number; lit?: boolean }) {
+/**
+ * A framed painting on a little walnut gallery stand, with a warm light pool. Once stolen it stays
+ * behind as an empty, slightly faded frame with a red X, so everyone can see what was taken.
+ */
+export function PaintingPiece({ id, lit = true, stolen = false }: { id: number; lit?: boolean; stolen?: boolean }) {
+  const fade = { transparent: stolen, opacity: stolen ? STOLEN_OPACITY : 1 };
+  const art = stolen ? stolenPaintingTexture() : paintingTexture(id);
   return (
     <group>
       <mesh position={[0, 0.07, 0]} castShadow>
         <boxGeometry args={[0.46, 0.14, 0.24]} />
-        <meshStandardMaterial color="#7a5234" roughness={0.6} flatShading />
+        <meshStandardMaterial color={stolen ? "#76593f" : "#7a5234"} roughness={0.6} flatShading {...fade} />
       </mesh>
       <group position={[0, 0.42, 0]} rotation={[-0.12, 0, 0]}>
         <mesh castShadow>
           <boxGeometry args={[0.5, 0.6, 0.05]} />
-          <meshStandardMaterial color="#c8962e" metalness={0.4} roughness={0.35} flatShading />
+          <meshStandardMaterial color={stolen ? "#b99a58" : "#c8962e"} metalness={0.4} roughness={0.35} flatShading {...fade} />
         </mesh>
         <mesh position={[0, 0, 0.027]}>
           <planeGeometry args={[0.4, 0.5]} />
-          <meshStandardMaterial map={paintingTexture(id)} roughness={0.8} emissive="#ffffff" emissiveMap={paintingTexture(id)} emissiveIntensity={lit ? 0.35 : 0.05} />
+          <meshStandardMaterial map={art} roughness={0.8} emissive="#ffffff" emissiveMap={art} emissiveIntensity={stolen ? 0.2 : lit ? 0.35 : 0.05} {...fade} />
         </mesh>
       </group>
-      {lit && (
+      {lit && !stolen && (
         <mesh position={[0, 0.015, 0.1]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[1.1, 1.1]} />
           <meshBasicMaterial map={glowTexture()} color="#ffc56b" transparent opacity={0.35} depthWrite={false} blending={THREE.AdditiveBlending} />

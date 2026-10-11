@@ -213,7 +213,7 @@ function Diorama() {
       {CAMERAS.map(([n, x, y]) => (
         <group key={n}>
           <group position={cellPos(board, C(x, y))}>
-            <CameraPiece n={n} led="on" />
+            <CameraPiece n={n} state="on" />
           </group>
           {!lite && <CameraBeams cell={C(x, y)} />}
         </group>

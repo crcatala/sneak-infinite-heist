@@ -195,6 +195,34 @@ export function discTexture(label: string, fg = "#1b1834", bg = "#ffffff"): THRE
   return finish(key, c);
 }
 
+/** The camera plate of a dead camera: a greyed disc with its number crossed out in red. */
+export function deadDiscTexture(label: string): THREE.Texture {
+  const key = `disc:dead:${label}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const S = 128;
+  const [c, ctx] = canvas(S, S);
+  ctx.fillStyle = "#9a9aa8";
+  ctx.beginPath();
+  ctx.arc(S / 2, S / 2, S / 2 - 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#55556a";
+  ctx.font = `700 ${S * 0.62}px Fredoka, Nunito, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, S / 2, S / 2 + 6);
+  ctx.strokeStyle = "#ff4d6d";
+  ctx.lineWidth = 12;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(28, 28);
+  ctx.lineTo(S - 28, S - 28);
+  ctx.moveTo(S - 28, 28);
+  ctx.lineTo(28, S - 28);
+  ctx.stroke();
+  return finish(key, c);
+}
+
 /** A small rounded name tag in a detective's colour (floats over their pointer pins). */
 export function tagTexture(label: string, bg: string, fg = "#07061a"): THREE.Texture {
   const key = `tag:${label}:${bg}:${fg}`;
@@ -647,6 +675,40 @@ export function paintingTexture(id: number): THREE.Texture {
   }
   ctx.globalAlpha = 1;
   return finish(key, c);
+}
+
+/** What a stolen painting leaves in its frame: a dark hollow with torn scraps and a red X. */
+export function stolenPaintingTexture(): THREE.Texture {
+  const hit = cache.get("art:gone");
+  if (hit) return hit;
+  const W = 128;
+  const H = 160;
+  const [c, ctx] = canvas(W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#0b0820");
+  g.addColorStop(1, "#241c4a");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  const scrap = (col: string, ...pts: number[]) => {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(pts[0], pts[1]);
+    for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+    ctx.closePath();
+    ctx.fill();
+  };
+  scrap("#c9774f", 0, 0, 52, 0, 44, 16, 30, 11, 22, 34, 0, 26);
+  scrap("#3a2f7a", W, H, 92, H, 98, 140, 114, 142, W, 112);
+  ctx.strokeStyle = "#ff4d6d";
+  ctx.lineWidth = 16;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(26, 36);
+  ctx.lineTo(W - 26, H - 36);
+  ctx.moveTo(W - 26, 36);
+  ctx.lineTo(26, H - 36);
+  ctx.stroke();
+  return finish("art:gone", c);
 }
 
 /** The painting as a data URL (for the HUD and plotting pad thumbnails). */
