@@ -195,7 +195,7 @@ export function PauseMenu({ view }: { view: RoomView }) {
   const me = view.players.find((p) => p.id === view.you);
   if (!paused) return null;
   const away = view.players.filter((p) => !p.isBot && !p.connected && p.id !== view.you);
-  const watcher = view.spectators[0];
+  // Normally one, but rooms from before the cap can hold more.
   const close = () => {
     set({ paused: false });
     setPage("main");
@@ -213,7 +213,7 @@ export function PauseMenu({ view }: { view: RoomView }) {
           onSelect: () => send({ t: "botTakeover", playerId: p.id, on: !p.botTakeover }),
         }))
       : []),
-    ...(me?.isHost && watcher ? [{ id: "unwatch", label: `Remove ${watcher.name} (watching)`, icon: "x", hint: "spectator", onSelect: () => send({ t: "kick", playerId: watcher.id }) }] : []),
+    ...(me?.isHost ? view.spectators.map((w) => ({ id: `unwatch-${w.id}`, label: `Remove ${w.name} (watching)`, icon: "x", hint: "spectator", onSelect: () => send({ t: "kick", playerId: w.id }) })) : []),
     { id: "leave", label: "Leave room", icon: "exit", onSelect: () => navigate("/") },
   ];
   return (

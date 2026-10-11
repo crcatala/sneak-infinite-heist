@@ -60,7 +60,10 @@ export function TurnBar({ view, game }: { view: RoomView; game: GameView }) {
   };
   const iAmThief = view.role === "thief";
   const heatOn = game.rules.assist === "overlay" && (view.role === "detective" || view.role === "spectator");
-  const watcher = view.spectators.find((w) => w.connected);
+  // Normally one, but rooms from before the cap can hold more.
+  const watchers = view.spectators.filter((w) => w.connected);
+  const watcherNames = watchers.map((w) => (w.id === view.you ? "You" : w.name)).join(", ");
+  const watcherLabel = watchers.length === 1 && watchers[0].id === view.you ? "You're watching" : `${watcherNames} ${watchers.length === 1 ? "is" : "are"} watching`;
   const dawn = game.rules.dawnAfterThiefTurns;
   const powerLabel = game.power.cut ? (iAmThief && !game.power.discovered ? "Power cut (secret)" : "Power out") : "Power on";
 
@@ -117,12 +120,12 @@ export function TurnBar({ view, game }: { view: RoomView; game: GameView }) {
         >
           <Icon name="bolt" size={14} /> {game.power.cut ? (iAmThief && !game.power.discovered ? "Cut 🔒" : "Out") : "On"}
         </span>
-        {watcher && (
+        {watchers.length > 0 && (
           <span
             className="chip dim"
             tabIndex={0}
-            aria-label={watcher.id === view.you ? "You are watching" : `${watcher.name} is watching`}
-            {...tip(watcher.id === view.you ? "You're watching" : `${watcher.name} is watching`, "A spectator follows along from the detectives' side. They can't see the thief or play, and they can't affect the game.")}
+            aria-label={watcherLabel}
+            {...tip(watcherLabel, "A spectator follows along from the detectives' side. They can't see the thief or play, and they can't affect the game.")}
           >
             <Icon name="eye" size={14} />
           </span>

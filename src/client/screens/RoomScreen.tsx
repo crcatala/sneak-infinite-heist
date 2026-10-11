@@ -6,7 +6,7 @@ import { Icon } from "../components/Icon";
 import { Logo } from "../components/Logo";
 import { loadIdentity, loadName, saveName } from "../identity";
 import { connect, disconnect } from "../net";
-import { presenceChanges, watcherChanges } from "../presence";
+import { goneIds, presenceChanges, watcherChanges } from "../presence";
 import { navigate } from "../router";
 import { setMusic, sfx } from "../sfx";
 import { useStore } from "../store";
@@ -29,8 +29,15 @@ function usePresenceToasts() {
 
   useEffect(() => {
     if (!players || !me) return;
+    const everyone = [...players, ...(spectators ?? [])];
+    // Someone removed or replaced while their drop was still pending is gone for good: say nothing.
+    for (const id of goneIds([...pending.current.keys(), ...announced.current], everyone)) {
+      clearTimeout(pending.current.get(id));
+      pending.current.delete(id);
+      announced.current.delete(id);
+    }
     if (prev.current) {
-      const { left, back } = presenceChanges(prev.current, [...players, ...(spectators ?? [])], me);
+      const { left, back } = presenceChanges(prev.current, everyone, me);
       for (const p of left) {
         clearTimeout(pending.current.get(p.id));
         pending.current.set(
@@ -54,7 +61,7 @@ function usePresenceToasts() {
         }
       }
     }
-    prev.current = [...players, ...(spectators ?? [])];
+    prev.current = everyone;
   }, [players, spectators, me, toast]);
 
   // The watcher is announced to everyone, the thief included, so nobody is watched in secret.

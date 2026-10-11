@@ -577,7 +577,31 @@ describe("spectators", () => {
     expect(room.isSpectator(room.join({ name: "E" }).playerId)).toBe(true);
   });
 
-  it("migrates rooms saved before the setting existed to allow a spectator", () => {
+  it("holds the cap in rooms saved with several watchers, and the extras drain as they leave", () => {
+    const { room } = newRoom();
+    room.join({ name: "Host" });
+    // Rooms from before the cap could hold up to 12 watchers: recreate one with three.
+    const ids = ["w90", "w91", "w92"];
+    const legacy = ids.map((id, i) => ({ id, name: `Old ${i}`, isBot: false, isHost: false, ready: false, connected: true, joinedAt: 0, character: null, volunteer: false }));
+    room.state.spectators = legacy;
+    for (const id of ids) room.state.secrets[id] = `secret-${id}`;
+
+    // Nobody new gets in while a connected extra is still there; a disconnected one is let go.
+    room.setConnected("w92", false);
+    expect(() => room.join({ name: "New", spectate: true })).toThrow(/already watching/);
+    expect(room.state.spectators.map((p) => p.id)).toEqual(["w90", "w91"]);
+    expect(room.state.secrets.w92).toBeUndefined();
+
+    // As the rest leave, the room settles at one watcher.
+    room.setConnected("w91", false);
+    expect(() => room.join({ name: "New", spectate: true })).toThrow(/already watching/);
+    expect(room.state.spectators.map((p) => p.id)).toEqual(["w90"]);
+    room.setConnected("w90", false);
+    const fresh = room.join({ name: "New", spectate: true }).playerId;
+    expect(room.state.spectators.map((p) => p.id)).toEqual([fresh]);
+  });
+
+    it("migrates rooms saved before the setting existed to allow a spectator", () => {
     const deps = testDeps();
     const state = createRoomState("ABCDEFG", deps.now());
     delete (state.settings as Partial<typeof state.settings>).allowSpectator;
