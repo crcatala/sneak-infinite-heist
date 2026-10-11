@@ -17,7 +17,7 @@ import { Mover, PopIn } from "./Actors";
 import { CameraRig } from "./CameraRig";
 import { cellAtWorld, cellPos, FLOOR_Y, worldToGrid } from "./layout";
 import { Floors, Plaza, Plinths, Walls } from "./Museum";
-import { Marker, NumberBadge, PathDots, SpotColumn, TileLayer } from "./Overlays";
+import { Marker, NoteTag, NumberBadge, PathDots, SpotColumn, TileLayer } from "./Overlays";
 import { CameraPiece, Padlock, PaintingPiece, Pawn, PowerSwitch, ThiefPawn } from "./pieces";
 import { Pins } from "./Pins";
 import { NightLights, SceneCanvas, type LightMood } from "./SceneCanvas";
@@ -226,6 +226,9 @@ function Contents({ view, game, ix, portrait }: { view: RoomView; game: GameView
       ))}
       {ix.markers.map((m, i) => (
         <Marker key={`m${m.cell}${i}`} board={board} cell={m.cell} label={m.label} colour={m.colour} />
+      ))}
+      {ix.tags.map((g, i) => (
+        <NoteTag key={`t${g.cell}${i}`} board={board} cell={g.cell} text={g.text} colour={g.colour} />
       ))}
       {ix.path && <PathDots board={board} from={ix.path.from} path={ix.path.path} colour={ix.path.colour} />}
       {spots.map((s) => (

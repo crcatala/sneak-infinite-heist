@@ -218,6 +218,34 @@ export function tagTexture(label: string, bg: string, fg = "#07061a"): THREE.Tex
   return finish(key, c);
 }
 
+/** A name tag sized to its text, for what another detective is doing ("Alex · 4 steps"). `userData.aspect` is width over height. */
+export function noteTexture(label: string, bg: string, fg = "#07061a"): THREE.Texture {
+  const key = `note:${label}:${bg}:${fg}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const H = 80;
+  const font = `700 ${H * 0.5}px Fredoka, Nunito, sans-serif`;
+  const probe = canvas(8, 8)[1];
+  probe.font = font;
+  const W = Math.ceil(probe.measureText(label).width + H * 0.9);
+  const [c, ctx] = canvas(W, H);
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.roundRect(4, 4, W - 8, H - 8, (H - 8) / 2);
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(7, 6, 26, 0.55)";
+  ctx.stroke();
+  ctx.fillStyle = fg;
+  ctx.font = font;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, W / 2, H / 2 + 3);
+  const tex = finish(key, c);
+  tex.userData.aspect = W / H;
+  return tex;
+}
+
 /** The power switch's floor plate: hazard-striped border around a bolt (mint when the power is on, alarm red when cut). */
 export function powerPlateTexture(on: boolean): THREE.Texture {
   const key = `powerPlate:${on}`;

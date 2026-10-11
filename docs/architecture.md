@@ -21,7 +21,7 @@ src/
     screens/            Title (boot, title, menus), Lobby, Game, How to Play, RoomScreen, SoloScreen
     scene/              Museum diorama, pieces, overlays, camera rig, title scene, bloom
     hud/                turn bar, action panel, plotting pad, dice tray, log, motion prompt, round over
-    game/               interaction (clicks and highlights), event presentation, derived helpers
+    game/               interaction (clicks and highlights), other detectives' pending choices (remote.ts), turn rotation (turnOrder.ts), event presentation, derived helpers
     lobbyFlow.ts        pure helpers for the lobby: cover-flow ring maths and the first-time hint steps
     sfx.ts              sound effects (clips from public/audio/sfx, synth fallback), volume buses
     music.ts            background music and round-end stingers (public/audio/music), crossfaded
@@ -44,6 +44,11 @@ src/
   `players`, so they never touch turns, clocks, the host or match rotation. They get the `spectator` view: the
   detectives' view minus the team's private notes (suspect marks, lock faces), so a spectator who is the thief's
   friend has nothing to pass along that the thief isn't allowed to know. The host's `allowSpectator` setting and `kick` control who watches.
+- **Pending choices (`intent`).** A detective's picked-but-unconfirmed space, Eye target or lifted piece goes out as a
+  stateless `intent` message, relayed to everyone else like a pin: detectives only, no memory, never changes game
+  state. Receivers check it against their own view (right turn, a space the pawn can really reach, a piece that is
+  there) and ignore it otherwise, so a stale or odd one just doesn't draw. It only describes public things, so it
+  can't leak anything. The reach outline needs no message: every client computes it from the public roll.
 - **Reconnects:** your seat is remembered per room, so refreshing rejoins the same seat. From another device, a
   started game offers the seats nobody is using. The host can hand an absent player's seat to a bot from the pause
   menu.

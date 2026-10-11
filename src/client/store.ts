@@ -1,7 +1,7 @@
 // Global client state: connection, latest room view, and UI bits shared across screens.
 
 import { create } from "zustand";
-import type { ClientMessage, RoomView } from "../shared/protocol";
+import type { ClientMessage, Intent, RoomView } from "../shared/protocol";
 import { PIN_LIFETIME_MS, placePin, type Pin } from "./game/pins";
 
 export type ConnStatus = "idle" | "connecting" | "open" | "reconnecting" | "failed" | "claim";
@@ -42,6 +42,8 @@ interface Store {
   toasts: Toast[];
   emotes: Emote[];
   pins: Pin[];
+  /** Other detectives' pending choices (a picked space, an Eye target, a lifted piece), by player id. */
+  intents: Record<string, Intent>;
   debug: DebugState;
   sendImpl: (msg: ClientMessage) => void;
 
@@ -51,6 +53,11 @@ interface Store {
   setDebug: (d: Partial<DebugState>) => void;
   showEmote: (by: string, emote: string) => void;
   showPin: (by: string, x: number, y: number) => void;
+  /** Records (or, with null, takes back) a detective's pending choice. */
+  setIntent: (by: string, intent: Intent | null) => void;
+  clearIntents: () => void;
+  /** Forgets the choices of players who are no longer connected, so a return can't bring back a stale one. */
+  pruneIntents: (connected: (id: string) => boolean) => void;
 }
 
 let nextId = 1;
@@ -65,6 +72,7 @@ export const useStore = create<Store>((set, get) => ({
   toasts: [],
   emotes: [],
   pins: [],
+  intents: {},
   debug: { open: false, slowMotion: false, msgIn: 0, msgOut: 0, bytesIn: 0 },
   sendImpl: () => {},
 
@@ -92,6 +100,22 @@ export const useStore = create<Store>((set, get) => ({
     // The scene fades pins by the clock; this just drops them from memory once they're gone.
     setTimeout(() => set((s) => ({ pins: s.pins.filter((p) => p.until > performance.now()) })), PIN_LIFETIME_MS + 100);
   },
+  setIntent: (by, intent) =>
+    set((s) => {
+      if (intent === null) {
+        if (!(by in s.intents)) return s;
+        const { [by]: _gone, ...rest } = s.intents;
+        void _gone;
+        return { intents: rest };
+      }
+      return { intents: { ...s.intents, [by]: intent } };
+    }),
+  clearIntents: () => set((s) => (Object.keys(s.intents).length ? { intents: {} } : s)),
+  pruneIntents: (connected) =>
+    set((s) => {
+      const keep = Object.entries(s.intents).filter(([id]) => connected(id));
+      return keep.length === Object.keys(s.intents).length ? s : { intents: Object.fromEntries(keep) };
+    }),
 }));
 
 /** Server clock "now", corrected for the local clock offset (for turn timers). */

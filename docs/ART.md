@@ -4,6 +4,9 @@ The lobby's detective and thief portraits (`public/art/detectives/{red,yellow,gr
 are original illustrations. They were generated with OpenAI's `gpt-image-2.5-flare` model through the `image-gen`
 tooling, as transparent PNGs, then resized to 640×960 and saved as WebP (quality 88).
 
+The turn bar's round faces (`public/art/faces/*.webp`, 96×96) are head crops cut from these same illustrations, so the
+HUD doesn't load the full-body files.
+
 They are meant to be the same kind of art as the rest of the project: original characters, not based on any existing
 game's artwork. **Check the image provider's current terms before any commercial use or redistribution.**
 

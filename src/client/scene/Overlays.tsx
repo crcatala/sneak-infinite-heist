@@ -6,7 +6,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Board, Cell } from "../../shared/board/model";
 import { cellXZ, FLOOR_Y } from "./layout";
-import { discTexture, glowTexture } from "./textures";
+import { discTexture, glowTexture, noteTexture } from "./textures";
 
 export interface Tile {
   cell: Cell;
@@ -163,6 +163,18 @@ export function Marker({ board, cell, label, colour, size = 0.42, height = 0.55 
         <meshBasicMaterial color={colour} transparent opacity={0.7} />
       </mesh>
     </group>
+  );
+}
+
+/** A name tag floating over a cell: whose choice a preview is, and what it is. */
+export function NoteTag({ board, cell, text, colour, height = 1.05 }: { board: Board; cell: Cell; text: string; colour: string; height?: number }) {
+  const [x, z] = cellXZ(board, cell);
+  const map = noteTexture(text, colour);
+  const h = 0.3;
+  return (
+    <sprite position={[x, FLOOR_Y + height, z]} scale={[h * (map.userData.aspect as number), h, 1]} renderOrder={7}>
+      <spriteMaterial map={map} depthTest={false} transparent />
+    </sprite>
   );
 }
 

@@ -1,14 +1,17 @@
 // Top bar: round status chips, a big "whose turn" line with who we're waiting on and why, the clock,
 // and view controls (camera presets, overlays, pad, log, pause).
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { character, THIEF } from "../../shared/characters";
 import type { GameView } from "../../shared/game/views";
 import type { RoomView } from "../../shared/protocol";
+import { faceArt } from "../art";
 import { Icon } from "../components/Icon";
 import { tip } from "../components/Tip";
 import { VolumeControl } from "../components/VolumeControl";
 import { activePawn, pawnName, playerName } from "../game/derive";
+import { turnSequence, type TurnNode } from "../game/turnOrder";
+import { usePrefs } from "../prefs";
 import { useGameUi, type CameraPreset } from "../game/uiStore";
 import { serverNow } from "../store";
 import { sfx } from "../sfx";
@@ -64,6 +67,9 @@ export function TurnBar({ view, game }: { view: RoomView; game: GameView }) {
   const watchers = view.spectators.filter((w) => w.connected);
   const watcherNames = watchers.map((w) => (w.id === view.you ? "You" : w.name)).join(", ");
   const watcherLabel = watchers.length === 1 && watchers[0].id === view.you ? "You're watching" : `${watcherNames} ${watchers.length === 1 ? "is" : "are"} watching`;
+  const rotation = turnSequence(game);
+  const collapsed = usePrefs((s) => s.turnOrderCollapsed);
+  const setPref = usePrefs((s) => s.set);
   const dawn = game.rules.dawnAfterThiefTurns;
   const powerLabel = game.power.cut ? (iAmThief && !game.power.discovered ? "Power cut (secret)" : "Power out") : "Power on";
 
@@ -137,13 +143,27 @@ export function TurnBar({ view, game }: { view: RoomView; game: GameView }) {
         )}
       </div>
 
-      <div data-hud="band" className={`turnbar-main${turn.mine ? " mine" : ""}`} style={{ ["--c" as string]: turn.colour }} aria-live="polite">
-        <span className="turn-dot" />
-        <div>
-          <div className="turn-text">{turn.text}</div>
-          {turn.sub && <div className="turn-sub">{turn.sub}</div>}
+      <div data-hud="band" className={`turnbar-main${turn.mine ? " mine" : ""}${rotation ? " has-order" : ""}${rotation && collapsed ? " collapsed" : ""}`} style={{ ["--c" as string]: turn.colour }}>
+        <div className="turn-head" aria-live="polite">
+          {rotation && collapsed ? <TurnFace node={rotation[0]} className="turn-face" /> : <span className="turn-dot" />}
+          <div>
+            <div className="turn-text">{turn.text}</div>
+            {turn.sub && !(rotation && collapsed) && <div className="turn-sub">{turn.sub}</div>}
+          </div>
+          <ClockChip view={view} />
+          {rotation && (
+            <button
+              className="turn-fold"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Show turn order" : "Hide turn order"}
+              {...tip(collapsed ? "Show turn order" : "Hide turn order", collapsed ? "Bring back the upcoming turns." : "Shrink this to just whose turn it is.", undefined, "bottom")}
+              onClick={() => setPref({ turnOrderCollapsed: !collapsed })}
+            >
+              <Icon name={collapsed ? "chevronDown" : "chevronUp"} size={16} />
+            </button>
+          )}
         </div>
-        <ClockChip view={view} />
+        {rotation && !collapsed && <TurnOrder nodes={rotation} view={view} game={game} />}
       </div>
 
       <div className="turnbar-tools">
@@ -226,5 +246,62 @@ export function ClockChip({ view }: { view: RoomView }) {
     <span className={`chip clock ${low ? "alarm pulse" : "dim"}`} {...tip(clock.deadline === null ? "Timer paused" : "Time left", "The host's turn timer. When it runs out, a bot finishes the turn for you.", undefined, "bottom")}>
       <Icon name="timer" size={14} /> {clock.deadline === null ? "paused" : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`}
     </span>
+  );
+}
+
+const THIEF_GOLD = "#ffc14d";
+
+const nodeHex = (node: TurnNode) => (node.kind === "thief" ? THIEF_GOLD : character(node.pawn.character).hex);
+
+function TurnFace({ node, className }: { node: TurnNode; className: string }) {
+  return (
+    <span className={className} style={{ ["--c" as string]: nodeHex(node) }}>
+      <img src={faceArt(node.kind === "thief" ? "thief" : node.pawn.character)} alt="" draggable={false} />
+    </span>
+  );
+}
+
+/**
+ * The rotation as portraits: whoever plays now is large and glowing, the next turn is ringed, and the thief's
+ * turns are the small charcoal faces between detectives. The curl at the end means the order repeats.
+ */
+function TurnOrder({ nodes, view, game }: { nodes: TurnNode[]; view: RoomView; game: GameView }) {
+  const me = view.you;
+  return (
+    <ol className="turn-order" aria-label="Turn order">
+      {nodes.map((node, i) => {
+        const thief = node.kind === "thief";
+        const mine = thief ? game.thief.controller === me : node.pawn.controller === me;
+        const name = mine ? "You" : thief ? "Thief" : character(node.pawn.character).short;
+        const player = thief ? playerName(view, game.thief.controller) : playerName(view, node.pawn.controller);
+        const who = thief ? `The thief (${player})` : `${character(node.pawn.character).name} (${player})`;
+        const when = i === 0 ? "Playing now." : i === 1 ? "Up next." : "Later in the order.";
+        return (
+          <Fragment key={i}>
+            <li
+              className={`to-node${thief ? " thief" : ""}${i === 0 ? " now" : ""}${i === 1 ? " next" : ""}`}
+              style={{ ["--c" as string]: nodeHex(node) }}
+              aria-label={`${name}${i === 0 ? ", playing now" : i === 1 ? ", up next" : ""}`}
+              tabIndex={0}
+              {...tip(who, when)}
+            >
+              {i === 1 && <span className="to-tag">next</span>}
+              <span className="to-face">
+                <TurnFace node={node} className="to-img" />
+              </span>
+              <span className="to-name">{name}</span>
+            </li>
+            {i < nodes.length - 1 && (
+              <li className="to-chev" aria-hidden>
+                ›
+              </li>
+            )}
+          </Fragment>
+        );
+      })}
+      <li className="to-loop" aria-hidden>
+        <Icon name="loop" size={14} />
+      </li>
+    </ol>
   );
 }

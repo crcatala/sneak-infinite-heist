@@ -17,6 +17,8 @@ export interface Prefs {
   /** Show the danger overlay by default when playing the thief. */
   dangerOverlay: boolean;
   muted: boolean;
+  /** The turn bar shows only whose turn it is, without the rotation of upcoming turns. */
+  turnOrderCollapsed: boolean;
 }
 
 const KEY = "sneak:prefs";
@@ -38,6 +40,7 @@ export const DEFAULT_PREFS: Prefs = {
   colourBlind: false,
   dangerOverlay: true,
   muted: false,
+  turnOrderCollapsed: false,
 };
 
 function load(): Prefs {
