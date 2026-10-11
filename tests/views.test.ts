@@ -11,7 +11,10 @@ describe("views (§6)", () => {
     expect(canSeeEvent("detectives", ev("thief"))).toBe(false);
     expect(canSeeEvent("detectives", ev("detectives"))).toBe(true);
     expect(canSeeEvent("thief", ev("detectives"))).toBe(false);
-    expect(canSeeEvent("spectator", ev("detectives"))).toBe(false);
+    // A spectator follows the detectives' feed, minus the lock faces the team keeps from the thief.
+    expect(canSeeEvent("spectator", ev("detectives"))).toBe(true);
+    expect(canSeeEvent("spectator", { ...ev("detectives"), type: "locksPlaced", faces: {} } as GameEvent)).toBe(false);
+    expect(canSeeEvent("spectator", ev("thief"))).toBe(false);
     expect(canSeeEvent("spectator", ev("all"))).toBe(true);
     expect(canSeeEvent("omniscient", ev("thief"))).toBe(true);
   });

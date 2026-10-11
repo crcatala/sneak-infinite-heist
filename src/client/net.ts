@@ -68,7 +68,8 @@ function open() {
     params.set("secret", id.secret);
   }
   if (claim) params.set("claim", claim);
-  if (spectate && !id) params.set("spectate", "1");
+  // The server tries a stored identity first, so asking to watch is safe even with a stale one.
+  if (spectate) params.set("spectate", "1");
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/api/rooms/${code}/ws?${params}`);
   socket = ws;

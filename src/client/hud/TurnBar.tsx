@@ -59,7 +59,8 @@ export function TurnBar({ view, game }: { view: RoomView; game: GameView }) {
     sfx.menuMove();
   };
   const iAmThief = view.role === "thief";
-  const heatOn = game.rules.assist === "overlay" && view.role === "detective";
+  const heatOn = game.rules.assist === "overlay" && (view.role === "detective" || view.role === "spectator");
+  const watcher = view.spectators.find((w) => w.connected);
   const dawn = game.rules.dawnAfterThiefTurns;
   const powerLabel = game.power.cut ? (iAmThief && !game.power.discovered ? "Power cut (secret)" : "Power out") : "Power on";
 
@@ -116,6 +117,16 @@ export function TurnBar({ view, game }: { view: RoomView; game: GameView }) {
         >
           <Icon name="bolt" size={14} /> {game.power.cut ? (iAmThief && !game.power.discovered ? "Cut 🔒" : "Out") : "On"}
         </span>
+        {watcher && (
+          <span
+            className="chip dim"
+            tabIndex={0}
+            aria-label={watcher.id === view.you ? "You are watching" : `${watcher.name} is watching`}
+            {...tip(watcher.id === view.you ? "You're watching" : `${watcher.name} is watching`, "A spectator follows along from the detectives' side. They can't see the thief or play, and they can't affect the game.")}
+          >
+            <Icon name="eye" size={14} />
+          </span>
+        )}
         {game.thief.revealed && game.phase === "play" && (
           <span className="chip alarm pulse" tabIndex={0} {...tip("Chase!", "A detective spotted the thief. Their pawn stays on the board and every move is public, and paintings vanish the moment they land on one.")}>
             CHASE

@@ -4,7 +4,7 @@ import { thiefDestinations } from "../src/shared/board/paths";
 import { MOTION_RESPONSE_MS } from "../src/shared/game/config";
 import type { GameState } from "../src/shared/game/state";
 import type { ClientMessage } from "../src/shared/protocol";
-import { BOT_SETUP_MS, BOT_THINK_MS, createRoomState, PIN_COOLDOWN_MS, Room, SeatClaimNeeded, type RoomDeps } from "../src/shared/room";
+import { BOT_SETUP_MS, BOT_THINK_MS, createRoomState, MAX_SPECTATORS, PIN_COOLDOWN_MS, Room, SeatClaimNeeded, type RoomDeps } from "../src/shared/room";
 import { mulberry32 } from "../src/shared/rng";
 
 function testDeps(seed = 1, cheats = false): RoomDeps & { advance(ms: number): void } {
@@ -476,5 +476,112 @@ describe("spectators", () => {
     expect(room.state.phase).toBe("game");
     expect(() => room.join({ name: "Late" })).toThrow(SeatClaimNeeded);
     expect(room.isSpectator(room.join({ name: "Late", spectate: true }).playerId)).toBe(true);
+  });
+
+  /** A started game (thief picked by the host) with one thief move played. */
+  function playingRoom() {
+    const { room, deps } = newRoom(3);
+    const ids = ["A", "B", "C"].map((name) => room.join({ name }).playerId);
+    send(room, ids[0], { t: "settings", patch: { thiefSelection: "host" } });
+    send(room, ids[0], { t: "setThief", playerId: ids[2] });
+    for (const id of ids) send(room, id, { t: "setReady", ready: true });
+    send(room, ids[0], { t: "debug", cmd: "skipToPlay" });
+    thiefStep(room, ids[2]);
+    return { room, deps, host: ids[0], mate: ids[1], thief: ids[2] };
+  }
+
+  it("holds one spectator, and the seat stays theirs until someone else needs it", () => {
+    expect(MAX_SPECTATORS).toBe(1);
+    const { room } = newRoom();
+    const first = room.join({ name: "First", spectate: true });
+    expect(() => room.join({ name: "Second", spectate: true })).toThrow(/already watching/);
+
+    // They drop out and come back with their secret: same seat, nothing lost.
+    room.setConnected(first.playerId, false);
+    const back = room.join({ playerId: first.playerId, secret: first.secret, spectate: true });
+    expect(back.playerId).toBe(first.playerId);
+    expect(room.viewFor(first.playerId).spectators.map((p) => [p.name, p.connected])).toEqual([["First", true]]);
+
+    // While they're away anyone else may take the seat, and the old secret stops working.
+    room.setConnected(first.playerId, false);
+    const second = room.join({ name: "Second", spectate: true });
+    expect(room.viewFor(second.playerId).spectators.map((p) => p.name)).toEqual(["Second"]);
+    expect(room.isSpectator(first.playerId)).toBe(false);
+    expect(room.state.secrets[first.playerId]).toBeUndefined();
+  });
+
+  it("watches from the detectives' side: the same view, minus the team's private notes", () => {
+    const { room, host } = playingRoom();
+    const w = room.join({ name: "Watcher", spectate: true }).playerId;
+    const cell = room.viewFor(host).game!.detectives[0].cell!;
+    send(room, host, { t: "game", action: { a: "mark", cell, on: true } });
+
+    const det = room.viewFor(host).game!;
+    const spec = room.viewFor(w).game!;
+    expect(det.marks).toEqual([cell]);
+    expect(spec.marks).toEqual([]);
+    expect(spec.thief.cell).toBeNull();
+    expect(spec.events.some((e) => e.type === "thiefMoved")).toBe(true);
+    expect(spec.events.map((e) => e.seq)).toEqual(det.events.map((e) => e.seq));
+    expect({ ...spec, viewer: det.viewer, marks: det.marks }).toEqual(det);
+    expect(room.viewFor(w).role).toBe("spectator");
+    expect(JSON.stringify(spec)).not.toContain('"trail"');
+  });
+
+  it("can react with emotes but not play", () => {
+    const { room } = playingRoom();
+    const w = room.join({ name: "Watcher", spectate: true }).playerId;
+    expect(send(room, w, { t: "emote", emote: "👀" }).outbound).toHaveLength(2);
+    expect(errorOf(send(room, w, { t: "game", action: { a: "roll" } }))).toMatch(/watching/);
+    expect(errorOf(send(room, w, { t: "pin", x: 3, y: 4 }))).toMatch(/watching/);
+  });
+
+  it("lets only the host remove the spectator, at any time", () => {
+    const { room, host, mate } = playingRoom();
+    const w = room.join({ name: "Watcher", spectate: true }).playerId;
+    expect(errorOf(send(room, mate, { t: "kick", playerId: w }))).toMatch(/Only the host/);
+    expect(errorOf(send(room, w, { t: "kick", playerId: w }))).toMatch(/watching/);
+    const res = send(room, host, { t: "kick", playerId: w });
+    expect(res.changed).toBe(true);
+    expect(res.dropped).toEqual([{ playerId: w, message: expect.stringMatching(/removed/) }]);
+    expect(room.isSpectator(w)).toBe(false);
+    // The seats are untouched: kicking a seat still only works in the lobby.
+    expect(room.state.players).toHaveLength(3);
+    expect(errorOf(send(room, host, { t: "kick", playerId: mate }))).toMatch(/lobby/);
+  });
+
+  it("keeps ready flags when only the spectator setting changes", () => {
+    const { room } = newRoom();
+    const a = room.join({ name: "A" }).playerId;
+    room.join({ name: "B" });
+    room.join({ name: "C" });
+    send(room, a, { t: "setReady", ready: true });
+    send(room, a, { t: "settings", patch: { allowSpectator: false } });
+    expect(room.player(a)!.ready).toBe(true);
+    send(room, a, { t: "settings", patch: { botSkill: "rookie" } });
+    expect(room.player(a)!.ready).toBe(false);
+  });
+
+  it("refuses spectators while the host has them off, and says why", () => {
+    const { room } = newRoom();
+    const a = room.join({ name: "A" }).playerId;
+    const w = room.join({ name: "Watcher", spectate: true }).playerId;
+    const res = send(room, a, { t: "settings", patch: { allowSpectator: false } });
+    expect(res.dropped?.map((d) => d.playerId)).toEqual([w]);
+    expect(room.viewFor(a).spectators).toEqual([]);
+    expect(() => room.join({ name: "Late", spectate: true })).toThrow(/isn't allowing spectators/);
+    // A fifth human in a full lobby isn't offered the watching seat either.
+    for (const n of ["B", "C", "D"]) room.join({ name: n });
+    expect(() => room.join({ name: "E" })).toThrow("This room is full.");
+    send(room, a, { t: "settings", patch: { allowSpectator: true } });
+    expect(room.isSpectator(room.join({ name: "E" }).playerId)).toBe(true);
+  });
+
+  it("migrates rooms saved before the setting existed to allow a spectator", () => {
+    const deps = testDeps();
+    const state = createRoomState("ABCDEFG", deps.now());
+    delete (state.settings as Partial<typeof state.settings>).allowSpectator;
+    const room = new Room(state, deps);
+    expect(room.viewFor("nobody").settings.allowSpectator).toBe(true);
   });
 });

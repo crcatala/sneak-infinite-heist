@@ -347,6 +347,27 @@ button.lb-who-btn:hover .lb-avatar {
   gap: 0.4em;
   align-items: center;
 }
+.lb-watchers .chip.away {
+  opacity: 0.55;
+}
+.lb-unwatch {
+  appearance: none;
+  display: inline-grid;
+  place-items: center;
+  margin-left: 0.2em;
+  padding: 0.1em;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+.lb-unwatch:hover,
+.lb-unwatch:focus-visible {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
 
 .lb-rules-btn {
   appearance: none;

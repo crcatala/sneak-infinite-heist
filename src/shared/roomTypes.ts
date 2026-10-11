@@ -22,6 +22,8 @@ export interface RoomSettings {
   /** The classic museum, or a seeded remix (shareable seed). */
   layout: { kind: "classic" } | { kind: "remix"; seed: number };
   rules: HouseRules;
+  /** Lets one person watch from the detectives' side without a seat. Missing (older rooms) = on. */
+  allowSpectator: boolean;
 }
 
 export interface Player {
@@ -68,7 +70,7 @@ export interface RoomState {
   inviteId?: string;
   phase: RoomPhase;
   players: Player[];
-  /** People watching without a seat (they see only public information). */
+  /** The person watching without a seat (at most MAX_SPECTATORS): the detectives' view minus their private notes. */
   spectators?: Player[];
   /** Seat secrets by player id. Never sent to clients. */
   secrets: Record<string, string>;

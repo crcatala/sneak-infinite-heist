@@ -70,7 +70,7 @@ post-processing package (three's own jsm passes), no UI kit.
 | D10 | Setup readiness. | A setup phase advances when every *human* detective controller is ready and the placement is valid. Bot-only detective teams auto-place after think time. |
 | D11 | A human disappears mid-game with no turn timer. | The game waits (presence shows who); the host can hand the seat to a bot from the pause menu. |
 | D12 | Thief tries a lock whose face is already revealed Open. | Impossible in practice (an Open flip ends the round). |
-| D13 | A late joiner reaches a full lobby or a started game. | They can watch as a **spectator** (public view only) and take a free seat back in the lobby. |
+| D13 | A late joiner reaches a full lobby or a started game. | They can watch as the room's one **spectator** (the detectives' view minus the team's private notes, see gameplay guide) and take a free seat back in the lobby. The host can switch spectators off or remove the watcher. |
 | D14 | Bot strength. | Setting `botSkill`: Pro (default) or Rookie (fumbles about a third of its decisions). Timed-out human turns always use Pro. |
 | D15 | Timer for bot setup placements. | A shorter fixed range (250–450 ms) than play decisions (900–1600 ms). Both are independent of hidden state. |
 | D16 | "Top-down orthographic" camera preset. | A 13° field-of-view camera from high above, which is near-orthographic and allows a smooth dolly-zoom transition from the 3/4 view. |

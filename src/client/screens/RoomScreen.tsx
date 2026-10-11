@@ -6,7 +6,7 @@ import { Icon } from "../components/Icon";
 import { Logo } from "../components/Logo";
 import { loadIdentity, loadName, saveName } from "../identity";
 import { connect, disconnect } from "../net";
-import { presenceChanges } from "../presence";
+import { presenceChanges, watcherChanges } from "../presence";
 import { navigate } from "../router";
 import { setMusic, sfx } from "../sfx";
 import { useStore } from "../store";
@@ -20,6 +20,7 @@ const PRESENCE_GRACE_MS = 4000;
 /** Toasts when another player drops out, and when someone who was announced gone comes back. */
 function usePresenceToasts() {
   const players = useStore((s) => s.view?.players);
+  const spectators = useStore((s) => s.view?.spectators);
   const me = useStore((s) => s.view?.you);
   const toast = useStore((s) => s.toast);
   const prev = useRef<Player[] | null>(null);
@@ -29,7 +30,7 @@ function usePresenceToasts() {
   useEffect(() => {
     if (!players || !me) return;
     if (prev.current) {
-      const { left, back } = presenceChanges(prev.current, players, me);
+      const { left, back } = presenceChanges(prev.current, [...players, ...(spectators ?? [])], me);
       for (const p of left) {
         clearTimeout(pending.current.get(p.id));
         pending.current.set(
@@ -53,8 +54,24 @@ function usePresenceToasts() {
         }
       }
     }
-    prev.current = players;
-  }, [players, me, toast]);
+    prev.current = [...players, ...(spectators ?? [])];
+  }, [players, spectators, me, toast]);
+
+  // The watcher is announced to everyone, the thief included, so nobody is watched in secret.
+  const prevWatchers = useRef<Player[] | null>(null);
+  useEffect(() => {
+    if (!spectators || !me) return;
+    if (prevWatchers.current) {
+      const { arrived, gone } = watcherChanges(prevWatchers.current, spectators, me);
+      for (const p of arrived) {
+        toast(`${p.name} is watching`, "info", "👀");
+        sfx.playerBack();
+      }
+      // Someone who took a seat in the lobby hasn't stopped playing.
+      for (const p of gone) if (!players?.some((x) => x.id === p.id)) toast(`${p.name} stopped watching`, "info", "👀");
+    }
+    prevWatchers.current = spectators;
+  }, [spectators, players, me, toast]);
 
   useEffect(() => {
     const timers = pending.current;
@@ -64,6 +81,8 @@ function usePresenceToasts() {
 
 export function RoomScreen({ code }: { code: string }) {
   const [named, setNamed] = useState(() => !!loadName() || !!loadIdentity(code));
+  // A spectator link (?watch=1), or "Watch instead" on the name prompt.
+  const [watch, setWatch] = useState(() => new URLSearchParams(location.search).get("watch") === "1");
   const status = useStore((s) => s.status);
   const fatal = useStore((s) => s.fatal);
   const hasView = useStore((s) => !!s.view);
@@ -72,11 +91,22 @@ export function RoomScreen({ code }: { code: string }) {
 
   useEffect(() => {
     if (!named) return;
-    connect(code);
+    connect(code, undefined, watch);
     return () => disconnect();
-  }, [code, named]);
+  }, [code, named, watch]);
 
-  if (!named) return <NamePrompt code={code} onDone={() => setNamed(true)} />;
+  if (!named) {
+    return (
+      <NamePrompt
+        code={code}
+        watch={watch}
+        onDone={(asWatcher) => {
+          setWatch(asWatcher);
+          setNamed(true);
+        }}
+      />
+    );
+  }
   if (status === "claim") return <SeatPicker code={code} seats={claimSeats} />;
   if (status === "failed") {
     return (
@@ -162,22 +192,33 @@ function SeatPicker({ code, seats }: { code: string; seats: { id: string; name: 
   );
 }
 
-function NamePrompt({ code, onDone }: { code: string; onDone: () => void }) {
+function NamePrompt({ code, watch, onDone }: { code: string; watch: boolean; onDone: (watch: boolean) => void }) {
   const [name, setName] = useState("");
-  const submit = () => {
+  const submit = (asWatcher: boolean) => {
     if (!name.trim()) return;
     saveName(name.trim());
-    onDone();
+    onDone(asWatcher);
   };
   return (
-    <Notice title={`You're invited to room ${code}`}>
+    <Notice title={watch ? `Watch room ${code}` : `You're invited to room ${code}`}>
       <p className="dialogue-line" style={{ fontSize: "1.5rem" }}>
         What should the museum call you?
       </p>
-      <input className="input big-input" autoFocus maxLength={24} value={name} placeholder="e.g. Moonbeam" aria-label="Your name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} />
-      <button className="btn primary big" onClick={submit} disabled={!name.trim()}>
-        Sneak in <Icon name="play" />
-      </button>
+      <input className="input big-input" autoFocus maxLength={24} value={name} placeholder="e.g. Moonbeam" aria-label="Your name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit(watch)} />
+      {watch ? (
+        <button className="btn primary big" onClick={() => submit(true)} disabled={!name.trim()}>
+          <Icon name="eye" /> Start watching
+        </button>
+      ) : (
+        <>
+          <button className="btn primary big" onClick={() => submit(false)} disabled={!name.trim()}>
+            Sneak in <Icon name="play" />
+          </button>
+          <button className="btn ghost small" onClick={() => submit(true)} disabled={!name.trim()}>
+            <Icon name="eye" size={16} /> Watch instead
+          </button>
+        </>
+      )}
     </Notice>
   );
 }

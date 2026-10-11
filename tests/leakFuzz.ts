@@ -88,8 +88,11 @@ function checkView(state: GameState, viewer: Viewer) {
     const known = l.revealed || (viewer === "detectives" && state.rules.lockPlacement === "detectives");
     assert(known || l.face === undefined, `lock ${l.slot} face visible`);
   }
+  if (viewer === "spectator") assert(view.marks.length === 0, "team marks visible to a spectator");
   for (const e of view.events) {
-    assert(e.vis === "all" || e.vis === viewer, `${e.vis} event ${e.type} visible`);
+    // A spectator follows the detectives' public feed, except for what the team keeps from the thief.
+    const feed = viewer === "spectator" && e.vis === "detectives" && e.type !== "locksPlaced";
+    assert(e.vis === "all" || e.vis === viewer || feed, `${e.vis} event ${e.type} visible`);
     assert(e.type !== "thiefMoved" || e.path === undefined, "hidden path visible");
     assert(e.type !== "powerCut" && e.type !== "cameraDisabled", `${e.type} visible`);
     assert(e.type !== "paintingStolen" || !e.pending, "pending theft visible");

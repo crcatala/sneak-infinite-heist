@@ -40,6 +40,10 @@ src/
     contains the thief.
 - **Bots** see only their own role's view. Their think time is a fixed random range, never influenced by hidden
   state.
+- **Spectators** are not seats. At most one per room (`MAX_SPECTATORS`) lives in `RoomState.spectators`, outside
+  `players`, so they never touch turns, clocks, the host or match rotation. They get the `spectator` view: the
+  detectives' view minus the team's private notes (suspect marks, lock faces), so a spectator who is the thief's
+  friend has nothing to pass along that the thief isn't allowed to know. The host's `allowSpectator` setting and `kick` control who watches.
 - **Reconnects:** your seat is remembered per room, so refreshing rejoins the same seat. From another device, a
   started game offers the seats nobody is using. The host can hand an absent player's seat to a bot from the pause
   menu.
