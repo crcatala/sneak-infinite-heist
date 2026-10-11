@@ -75,6 +75,12 @@ three detectives reads `thief › Cinnabar › thief › Dot › thief › Sage 
 the pill's top right collapses it to a face, whose turn it is and the clock; the choice is remembered per browser.
 On a short landscape screen (under 520px tall) the rotation is always hidden.
 
+**What stays behind.** A stolen painting leaves its stand and frame on the space, slightly faded, with an empty
+canvas and a red X. A camera's hub glows green while it works. A camera the thief has cut glows indigo, but only the
+thief sees that; detectives keep seeing green until someone checks it or scans. Once found dead, the camera stays on
+the board greyed out with its number crossed out, a dangling cable and a dark ring. These marks never block a move
+and never appear early: a painting still looks hanging to detectives until it is really gone.
+
 **Watching a detective decide.** Everything a detective has picked but not confirmed shows on everyone's board,
 thief and spectator included. Hovering never does.
 
