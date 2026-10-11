@@ -11,6 +11,7 @@ import { reducedMotion } from "../prefs";
 import { setMusic, sfx } from "../sfx";
 import { useStore } from "../store";
 import { pawnName } from "./derive";
+import { startLift, type LiftStore } from "./lift";
 import { announceOf, lastAnnouncement, restoredRoll, type Announcement, type Ctx } from "./narrate";
 
 export { buildLog, describe, type LogLine, type Part, type Tone } from "./narrate";
@@ -72,6 +73,8 @@ export const useFx = create<Fx>((set) => ({
   showResult: false,
   set: (p) => set(p),
 }));
+
+const liftStore: LiftStore = { get: () => useFx.getState().lifting, set: (lifting) => useFx.setState({ lifting }) };
 
 let nextId = 1;
 
@@ -237,7 +240,7 @@ function play(e: GameEvent, ctx: Ctx): number {
       // The hidden thief makes no sound and nothing moves: just a note.
       return 350;
     case "paintingVanished":
-      useFx.setState({ lifting: { painting: e.painting, cell: e.cell, until: performance.now() + 1100 * speed() } });
+      startLift(liftStore, e.painting, e.cell, 1100 * speed());
       sfx.steal();
       return 1100;
     case "paintingStolen":
@@ -245,7 +248,7 @@ function play(e: GameEvent, ctx: Ctx): number {
         sfx.paintingUnhook();
         return 500;
       }
-      useFx.setState({ lifting: { painting: e.painting, cell: e.cell, until: performance.now() + 1100 * speed() } });
+      startLift(liftStore, e.painting, e.cell, 1100 * speed());
       sfx.steal();
       return 1000;
     case "cameraDisabled":
