@@ -439,6 +439,39 @@ describe("pointer pins", () => {
   });
 });
 
+describe("pending choices (intents)", () => {
+  function intentGame() {
+    const { room } = newRoom(3);
+    const ids = ["A", "B", "C"].map((name) => room.join({ name }).playerId);
+    send(room, ids[0], { t: "settings", patch: { thiefSelection: "host" } } as ClientMessage);
+    send(room, ids[0], { t: "setThief", playerId: ids[2] });
+    for (const id of ids) send(room, id, { t: "setReady", ready: true });
+    return { room, detective: ids[0], thief: ids[2] };
+  }
+  const pick: ClientMessage = { t: "intent", intent: { k: "turn", pawn: "d1", move: 12 } };
+
+  it("goes to everyone else but not back to the sender, and changes no game state", () => {
+    const { room, detective } = intentGame();
+    const before = JSON.stringify(room.state);
+    const res = send(room, detective, pick);
+    expect(res.outbound).toEqual([{ to: "others", msg: { t: "intent", by: detective, intent: { k: "turn", pawn: "d1", move: 12 } } }]);
+    expect(res.changed).toBeFalsy();
+    expect(JSON.stringify(room.state)).toBe(before);
+  });
+
+  it("relays a take-back", () => {
+    const { room, detective } = intentGame();
+    expect(send(room, detective, { t: "intent", intent: null }).outbound).toEqual([{ to: "others", msg: { t: "intent", by: detective, intent: null } }]);
+  });
+
+  it("is for detectives only", () => {
+    const { room, thief } = intentGame();
+    expect(errorOf(send(room, thief, pick))).toMatch(/Only detectives/);
+    const watcher = room.join({ name: "W", spectate: true }).playerId;
+    expect(errorOf(send(room, watcher, pick))).toMatch(/watching/);
+  });
+});
+
 describe("spectators", () => {
   it("watch with public information only and never take part", () => {
     const { room, deps } = newRoom(5);

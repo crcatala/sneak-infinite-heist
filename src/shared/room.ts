@@ -501,6 +501,15 @@ export class Room {
         return;
       }
 
+      case "intent": {
+        const g = this.state.game;
+        if (!g || g.phase === "roundOver" || !isDetective(g, playerId)) throw new RoomError("Only detectives can show a pending choice.");
+        // Relayed as-is, with no memory: it's a hint about public things, validated by whoever draws it,
+        // and a reconnecting player simply sees the next change. The sender already knows what they picked.
+        result.outbound.push({ to: "others", msg: { t: "intent", by: playerId, intent: msg.intent } });
+        return;
+      }
+
       case "debug":
         this.debug(playerId, msg);
         result.changed = true;

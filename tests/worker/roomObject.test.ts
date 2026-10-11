@@ -88,6 +88,52 @@ describe("pointer pins on the Durable Object", () => {
   });
 });
 
+describe("pending choices on the Durable Object", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_800_000_000_000);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("reaches the thief, a spectator and the other detective, but not the sender", async () => {
+    const { join, send } = await openRoom();
+    const host = await join({ name: "Host" });
+    const mate = await join({ name: "Mate" });
+    const thief = await join({ name: "Thief" });
+    await send(host, { t: "settings", patch: { thiefSelection: "host" } });
+    await send(host, { t: "setThief", playerId: playerId(thief) });
+    for (const ws of [host, mate, thief]) await send(ws, { t: "setReady", ready: true });
+    const watcher = await join({ name: "Watcher", spectate: "1" });
+
+    const intent = { k: "turn", pawn: "d1", move: 12 } as const;
+    await send(host, { t: "intent", intent });
+    await send(host, { t: "intent", intent: null });
+
+    const intents = (ws: FakeSocket) => received(ws).filter((m) => m.t === "intent");
+    const expected = [
+      { t: "intent", by: playerId(host), intent },
+      { t: "intent", by: playerId(host), intent: null },
+    ];
+    expect(intents(mate)).toEqual(expected);
+    expect(intents(thief)).toEqual(expected);
+    expect(intents(watcher)).toEqual(expected);
+    expect(intents(host)).toEqual([]);
+  });
+
+  it("is refused from the thief", async () => {
+    const { join, send } = await openRoom();
+    const host = await join({ name: "Host" });
+    const mate = await join({ name: "Mate" });
+    const thief = await join({ name: "Thief" });
+    await send(host, { t: "settings", patch: { thiefSelection: "host" } });
+    await send(host, { t: "setThief", playerId: playerId(thief) });
+    for (const ws of [host, mate, thief]) await send(ws, { t: "setReady", ready: true });
+    await send(thief, { t: "intent", intent: { k: "liftPawn", pawn: "d1" } });
+    expect(received(host).filter((m) => m.t === "intent")).toEqual([]);
+    expect(received(thief).some((m) => m.t === "error")).toBe(true);
+  });
+});
+
 describe("the spectator on the Durable Object", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });

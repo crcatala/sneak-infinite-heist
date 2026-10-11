@@ -40,6 +40,28 @@ export const CHEAT_COMMANDS: DebugCommand[] = ["viewAs"];
 
 export const EMOTES = ["👍", "😂", "😱", "🕵️", "🤫", "💰", "🚨", "👀"] as const;
 
+const intentCell = z.number().int().min(0).max(4095);
+
+/**
+ * What a detective has picked but not yet confirmed, so the rest of the room can watch it happen. Pure
+ * table talk like pins: it only ever describes public things (a space, a camera number, a pawn) and
+ * never changes the game. `null` clears it.
+ */
+export const intentSchema = z.discriminatedUnion("k", [
+  /** Their turn: a chosen destination and/or an Eye target, waiting for Confirm. */
+  z.object({
+    k: z.literal("turn"),
+    pawn: z.string().min(1).max(4),
+    move: intentCell.optional(),
+    eye: z.union([z.literal("self"), z.number().int().min(1).max(6)]).optional(),
+  }),
+  /** Setup: a painting or camera picked up from this space. */
+  z.object({ k: z.literal("lift"), piece: z.enum(["painting", "camera"]), cell: intentCell }),
+  /** Setup: a detective pawn picked up to move. */
+  z.object({ k: z.literal("liftPawn"), pawn: z.string().min(1).max(4) }),
+]);
+export type Intent = z.infer<typeof intentSchema>;
+
 export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("ping") }),
   z.object({ t: z.literal("setName"), name: z.string().trim().min(1).max(24) }),
@@ -59,6 +81,8 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("emote"), emote: z.enum(EMOTES) }),
   /** A detective's pointer pin, in board-grid units (a cell's centre is a whole number). */
   z.object({ t: z.literal("pin"), x: z.number().min(-1).max(100), y: z.number().min(-1).max(100) }),
+  /** A detective's pending choice (see `intentSchema`); `null` takes it back. */
+  z.object({ t: z.literal("intent"), intent: intentSchema.nullable() }),
   z.object({
     t: z.literal("debug"),
     cmd: z.enum(DEBUG_COMMANDS),
@@ -129,6 +153,8 @@ export type ServerMessage =
   | { t: "emote"; by: string; emote: string }
   /** A detective's pointer pin (only detectives place them; everyone in the room sees them). */
   | { t: "pin"; by: string; x: number; y: number }
+  /** A detective's pending choice, relayed to everyone else; `intent: null` means they took it back. */
+  | { t: "intent"; by: string; intent: Intent | null }
   | { t: "error"; message: string }
   | { t: "pong" };
 

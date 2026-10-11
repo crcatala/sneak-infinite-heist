@@ -10,34 +10,14 @@ import type { RoomView } from "../../shared/protocol";
 import type { Tile } from "../scene/Overlays";
 import { sfx } from "../sfx";
 import { useStore } from "../store";
+import { COLOURS, legalOutline } from "./colours";
 import { activePawn, dangerCells, detectiveEnds, pawnHex, thiefEnds } from "./derive";
+import { remotePreview, type RemoteTag } from "./remote";
 import { previewFocus, previewRoute, showsCount } from "./movePreview";
 import { useFx } from "./present";
 import { useGameUi, type GameUi } from "./uiStore";
 
 void _unused;
-
-export const COLOURS = {
-  reach: "#ffc14d",
-  path: "#fff1b8",
-  bad: "#ff4d6d",
-  danger: "#ff6b81",
-  sight: "#6fe8ff",
-  miss: "#9a98b8",
-  heat: "#b57bff",
-  legal: "#4fe0b0",
-  mark: "#ff9f43",
-};
-
-/** A hex colour scaled toward black: the legal-move outline sits a shade under the colour it belongs to. */
-function shade(hex: string, k: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const ch = (shift: number) => Math.round(((n >> shift) & 255) * k).toString(16).padStart(2, "0");
-  return `#${ch(16)}${ch(8)}${ch(0)}`;
-}
-
-/** The dashed legal-move outline for a mover's colour: a shade darker, so it reads as theirs without matching a selected fill. */
-const legalOutline = (hex: string) => shade(hex, 0.8);
 
 export type Mode =
   | { kind: "watch"; reason: string }
@@ -109,6 +89,8 @@ export interface BoardInteraction {
   pawnGhost: { pawn: string; cell: Cell } | null;
   /** The route previewed for the focused destination; dots take the mover's colour (the thief's default amber). */
   path: { from: Cell; path: Cell[]; colour?: string } | null;
+  /** Name tags over other detectives' pending choices. */
+  tags: RemoteTag[];
   /** Explanation for the hovered cell, if it's not a legal target. */
   hoverReason: string | null;
   click: (cell: Cell) => void;
@@ -119,6 +101,7 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
   const ui = useGameUi();
   const fx = useFx();
   const send = useStore((s) => s.send);
+  const intents = useStore((s) => s.intents);
   const toast = useStore((s) => s.toast);
   const board = getBoard(game.board);
   const mode = modeOf(view, game, ui.plan);
@@ -163,6 +146,14 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
       const ago = game.thief.turns - game.lastSeen.atThiefTurn;
       markers.push({ cell: game.lastSeen.cell, label: ago === 0 ? "!" : String(ago), colour: "#ff6b81" });
     }
+
+    // Other detectives' choices sit above heat and danger and below your own previews (which only exist on your
+    // own turn, so the two never share a board). Different tile shapes stack; the chosen tile's fill wins a fill-on-fill.
+    const remote = remotePreview(view, game, intents, watched);
+    tiles.push(...remote.tiles);
+    badges.push(...remote.badges);
+    pawnGhost = remote.pawnGhost;
+    path = remote.path;
 
     const canMark = view.role === "detective" && game.rules.assist !== "off";
     const toggleMark = (cell: Cell) => {
@@ -395,9 +386,9 @@ export function useBoardInteraction(view: RoomView, game: GameView): BoardIntera
       if (f.kind === "ping") for (const c of f.cells) tiles.push({ cell: c, colour: COLOURS.bad, alpha: 0.7, style: 2, pulse: true });
     }
 
-    return { mode, tiles, badges, markers, ghosts, pawnGhost, path, hoverReason, click, context };
+    return { mode, tiles, badges, markers, tags: remote.tags, ghosts, pawnGhost, path, hoverReason, click, context };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, game, ui.hover, ui.hoverSlot, ui.held, ui.plan, ui.moveDest, ui.eyePreview, ui.pointerMode, ui.danger, ui.heat, fx.flashes, fx.hint, heat, mode.kind]);
+  }, [view, game, intents, ui.hover, ui.hoverSlot, ui.held, ui.plan, ui.moveDest, ui.eyePreview, ui.pointerMode, ui.danger, ui.heat, fx.flashes, fx.hint, heat, mode.kind]);
 }
 
 export function boardFor(game: GameView): Board {

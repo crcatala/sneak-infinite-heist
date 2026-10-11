@@ -42,7 +42,7 @@ const STUCK_ALARM_BACKOFF_MS = 60 * 1000;
  */
 const HEARTBEAT_STALE_MS = 90 * 1000;
 /** Messages that never change room state, so they don't spend the room's write budget. */
-const STATELESS: ReadonlySet<ClientMessage["t"]> = new Set(["ping", "emote", "pin"]);
+const STATELESS: ReadonlySet<ClientMessage["t"]> = new Set(["ping", "emote", "pin", "intent"]);
 /** Anything longer is treated as junk without being parsed (real messages are a few hundred bytes). */
 const MAX_MESSAGE_CHARS = 8192;
 /** While anyone is throttled, the flood snapshot is saved at most this often (a close always saves). */

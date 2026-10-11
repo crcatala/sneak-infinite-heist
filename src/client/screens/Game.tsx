@@ -3,6 +3,8 @@
 
 import { useEffect, useRef } from "react";
 import { cellOf, getBoard, xyOf } from "../../shared/board/model";
+import type { GameView } from "../../shared/game/views";
+import type { RoomView } from "../../shared/protocol";
 import { ActionPanel } from "../hud/ActionPanel";
 import { Announcer } from "../hud/Announcer";
 import { CursorTip } from "../hud/CursorTip";
@@ -15,6 +17,7 @@ import { activePawn } from "../game/derive";
 import { useBoardInteraction } from "../game/interact";
 import { defersToFocusedControl, primaryIntent } from "../game/keys";
 import { musicFor } from "../game/musicFor";
+import { intentToSend } from "../game/remote";
 import { ingest, resetPlayer, setFastForward, skipFx, useFx } from "../game/present";
 import { useGameUi } from "../game/uiStore";
 import { GameScene } from "../scene/GameScene";
@@ -53,7 +56,11 @@ export function Game() {
   const turnKey = `${game.phase}:${game.thief.turns}:${game.turn.kind}:${game.turn.kind === "detective" ? game.turn.pawn : ""}`;
   useEffect(() => {
     useGameUi.getState().resetTurn();
+    // Other detectives' pending choices belong to the turn they were made in.
+    useStore.getState().clearIntents();
   }, [turnKey]);
+
+  useShareIntent(view, game);
 
   // Keyboard "click" on the board cursor uses the current interaction.
   useEffect(() => {
@@ -85,6 +92,31 @@ export function Game() {
       {view.viewAs && <div className="peek-badge">Peeking as {view.viewAs} (debug)</div>}
     </div>
   );
+}
+
+/**
+ * Lets the rest of the room watch a detective decide: whenever the viewer's own pending choice (a picked space,
+ * an Eye target, a lifted piece) changes, it goes out as an `intent`, and `null` takes it back. A reconnect
+ * sends the current one again, because the room keeps no memory of it.
+ */
+function useShareIntent(view: RoomView, game: GameView) {
+  const moveDest = useGameUi((s) => s.moveDest);
+  const eyeTarget = useGameUi((s) => s.eyeTarget);
+  const held = useGameUi((s) => s.held);
+  const status = useStore((s) => s.status);
+  const send = useStore((s) => s.send);
+  const intent = intentToSend(view, game, { moveDest, eyeTarget, held });
+  const key = JSON.stringify(intent);
+  const sent = useRef("null");
+  useEffect(() => {
+    sent.current = "null";
+  }, [status]);
+  useEffect(() => {
+    if (key === sent.current || status !== "open") return;
+    sent.current = key;
+    send({ t: "intent", intent });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, status]);
 }
 
 /**

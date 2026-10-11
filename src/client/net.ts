@@ -146,6 +146,9 @@ function open() {
         store.showPin(msg.by, msg.x, msg.y);
         if (msg.by !== store.view?.you) sfx.pinDrop();
         break;
+      case "intent":
+        store.setIntent(msg.by, msg.intent);
+        break;
       case "error":
         if (!welcomed) {
           // Refused join: stop here rather than waiting for (or retrying after) the close.
@@ -178,5 +181,6 @@ function open() {
 export function sendRaw(msg: ClientMessage) {
   const text = JSON.stringify(msg);
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(text);
-  else if (msg.t !== "emote" && msg.t !== "pin") queue.push(text);
+  // Table talk is only worth sending live: a queued pin or pending choice would arrive stale.
+  else if (msg.t !== "emote" && msg.t !== "pin" && msg.t !== "intent") queue.push(text);
 }
