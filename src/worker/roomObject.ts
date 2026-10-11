@@ -213,6 +213,7 @@ export class RoomDurableObject extends DurableObject<Env> {
       else if (out.to === "team") this.sendToTeam(att.playerId, out.msg);
       else this.sendToOthers(att.playerId, out.msg);
     }
+    for (const gone of result.dropped ?? []) this.dropSockets(gone.playerId, gone.message);
     if (result.changed) {
       await this.saveState();
       this.broadcastState();
@@ -221,6 +222,19 @@ export class RoomDurableObject extends DurableObject<Env> {
     } else {
       // Any message makes a quiet room active again: start the presence sweeps.
       await this.scheduleAlarm();
+    }
+  }
+
+  /** Tells a person who was removed from the room why, then closes every socket they have open. */
+  private dropSockets(playerId: string, message: string) {
+    for (const ws of this.ctx.getWebSockets()) {
+      if ((ws.deserializeAttachment() as Attachment | null)?.playerId !== playerId) continue;
+      this.sendTo(ws, { t: "closed", code: CLOSE.refused, message });
+      try {
+        ws.close(CLOSE.refused, "removed");
+      } catch {
+        /* already closing */
+      }
     }
   }
 

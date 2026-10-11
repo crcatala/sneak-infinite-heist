@@ -88,6 +88,37 @@ describe("pointer pins on the Durable Object", () => {
   });
 });
 
+describe("the spectator on the Durable Object", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_800_000_000_000);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("is told why and disconnected when the host removes them", async () => {
+    const { join, send } = await openRoom();
+    const host = await join({ name: "Host" });
+    const watcher = await join({ name: "Watcher", spectate: "1" });
+
+    await send(host, { t: "kick", playerId: playerId(watcher) });
+
+    const closed = received(watcher).find((m) => m.t === "closed");
+    expect(closed).toMatchObject({ t: "closed", code: CLOSE.refused, message: expect.stringMatching(/removed/) });
+    expect(watcher.closed?.code).toBe(CLOSE.refused);
+    expect(received(host).filter((m) => m.t === "closed")).toEqual([]);
+  });
+
+  it("refuses a second spectator while the first is connected", async () => {
+    const { join } = await openRoom();
+    await join({ name: "Host" });
+    await join({ name: "First", spectate: "1" });
+    const second = await join({ name: "Second", spectate: "1" });
+
+    expect(received(second).find((m) => m.t === "error")).toMatchObject({ message: expect.stringMatching(/already watching/) });
+    expect(second.closed?.code).toBe(CLOSE.refused);
+  });
+});
+
 describe("room presence on the Durable Object", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });

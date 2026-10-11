@@ -29,6 +29,7 @@ const settingsPatch = z
     botSkill: z.enum(["rookie", "pro"]),
     layout: z.discriminatedUnion("kind", [z.object({ kind: z.literal("classic") }), z.object({ kind: z.literal("remix"), seed: z.number().int().min(0).max(4294967295) })]),
     rules: rulesPatch,
+    allowSpectator: z.boolean(),
   })
   .partial();
 
@@ -48,6 +49,7 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("settings"), patch: settingsPatch }),
   z.object({ t: z.literal("setThief"), playerId: id.nullable() }),
   z.object({ t: z.literal("addBot") }),
+  /** Lobby: removes a seat. Any time: removes the spectator. */
   z.object({ t: z.literal("kick"), playerId: id }),
   z.object({ t: z.literal("game"), action: gameActionSchema }),
   z.object({ t: z.literal("nextRound") }),

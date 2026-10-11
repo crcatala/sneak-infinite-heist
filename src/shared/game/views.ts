@@ -6,6 +6,7 @@ import type { BoardDef, Cell } from "../board/model";
 import type { HouseRules } from "./config";
 import type { DetectivePawn, GameEvent, GamePhase, GameState, LastSeen, LockFace, RoundResult, TrailStep, TurnState } from "./state";
 
+/** `spectator` = the detectives' view minus the team's private notes (suspect marks, lock faces). */
 export type Viewer = "thief" | "detectives" | "spectator" | "omniscient";
 
 export interface PaintingView {
@@ -70,6 +71,9 @@ export interface GameView {
 
 export function canSeeEvent(viewer: Viewer, e: GameEvent): boolean {
   if (viewer === "omniscient" || e.vis === "all") return true;
+  // A spectator watches from the detectives' side of the table, so they see the detectives' public
+  // feed (the "thief moved" ticks) but not what the team keeps from the thief (the lock faces).
+  if (viewer === "spectator") return e.vis === "detectives" && e.type !== "locksPlaced";
   return e.vis === viewer;
 }
 

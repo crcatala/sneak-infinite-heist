@@ -88,6 +88,26 @@ good once that step has been done (kept in `localStorage` as `sneak:lobby-hints`
 | Bot skill | **Pro** · Rookie | Rookie bots fumble about a third of their decisions. |
 | Detective aids | Off · **Marks** · Marks + overlay | Team suspect marks, or marks plus the "where could the thief be" heat map. |
 | Museum opens at dawn | **Off** · 20 · 30 · 40 turns | The detectives win if the thief is still inside by then. |
+| Spectator | **Allowed** · Off | Lets one person watch without a seat (see below). Turning it off removes the current watcher. |
 
 The action die is always 4 Eye / 1 Scan / 1 Motion.
+
+## Watching
+
+One person per room can watch without taking a seat: no avatar, no turns, and they never become the host. They join
+with the host's **Copy watch link** (`/r/CODE?watch=1`), with **Watch instead** on the name prompt, with **Just watch**
+when rejoining a game that has started, or automatically when they arrive at a full lobby of humans.
+
+- **They see what the detectives see**: the board, the log, the "the thief moved" ticks and (with the overlay on) the
+  where-could-they-be heat map. They never see the thief, the thief's moves or any other secret. They also don't get
+  the team's suspect marks, or the lock faces when the detectives place the locks, because the thief isn't allowed
+  to know those either.
+- **They can look around and react.** The camera, the overlays and emotes work as usual. Pins, marks and every
+  game action are for the players.
+- **Everyone is told.** An eye chip in the top bar shows while someone is watching, with a toast when they arrive or
+  leave, so the thief is never watched in secret.
+- **They can come back.** Closing the tab or losing the connection keeps their place until someone else takes it:
+  a new watcher can take the place of one who is disconnected, but not of one who is connected.
+- **The host is in charge.** The host can remove the watcher at any time (the lobby chip, or the pause menu in a game),
+  or switch spectators off in the house rules.
 

@@ -34,6 +34,8 @@ export interface HandleResult {
   changed: boolean;
   /** Messages that don't touch persistent state (errors, emotes). */
   outbound: { to: "others" | "self" | "team"; msg: ServerMessage }[];
+  /** People who were just removed from the room: the transport tells them why and closes their sockets. */
+  dropped?: { playerId: string; message: string }[];
 }
 
 export class RoomError extends Error {}
@@ -49,7 +51,7 @@ export interface JoinOptions {
   playerId?: string;
   secret?: string;
   name?: string;
-  /** Join as a spectator (no seat, public information only). */
+  /** Join as the spectator (no seat; watches from the detectives' side). */
   spectate?: boolean;
   /** Take over this disconnected seat (trust-based rejoin from a new device or browser). */
   claim?: string;
@@ -57,6 +59,8 @@ export interface JoinOptions {
 
 export const MAX_SEATS = 4;
 export const MIN_SEATS = 2;
+/** People who can watch a room without a seat. The state keeps a list, so this is the only knob. */
+export const MAX_SPECTATORS = 1;
 /** Bot think time: a fixed range, independent of anything hidden. */
 export const BOT_THINK_MS: [number, number] = [900, 1600];
 /** Setup placements are quicker (and public anyway). */
@@ -75,6 +79,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   botSkill: "pro",
   layout: { kind: "classic" },
   rules: { ...DEFAULT_RULES },
+  allowSpectator: true,
 };
 
 export function createRoomState(code: string, now: number, inviteId?: string): RoomState {
@@ -105,6 +110,8 @@ export class Room {
     private deps: RoomDeps,
   ) {
     state.spectators ??= [];
+    // Rooms saved before the setting existed.
+    state.settings.allowSpectator ??= true;
   }
 
   private get spectators(): Player[] {
@@ -170,12 +177,12 @@ export class Room {
       this.syncClock();
       return { playerId: existing.id, secret: opts.secret! };
     }
-    if (opts.spectate) return this.addSpectator(opts.name);
+    if (opts.spectate) return this.addSpectator(opts.name, "watch");
     if (this.state.phase !== "lobby") return this.claimSeat(opts.claim);
     if (this.state.players.length >= MAX_SEATS) {
       const bot = [...this.state.players].reverse().find((p) => p.isBot);
       // A full lobby of humans: come in and watch instead.
-      if (!bot) return this.addSpectator(opts.name);
+      if (!bot) return this.addSpectator(opts.name, "full");
       // A human bumps a bot.
       this.removePlayer(bot.id);
     }
@@ -203,13 +210,27 @@ export class Room {
     return { playerId, secret };
   }
 
-  private addSpectator(name?: string): { playerId: string; secret: string } {
-    if (this.spectators.length >= 12) throw new RoomError("Too many people are watching this room.");
+  /**
+   * Seats the spectator. The seat is first come, first served, but a holder who has disconnected
+   * doesn't keep it from someone else (their old secret stops working). `why` only picks the refusal text.
+   */
+  private addSpectator(name: string | undefined, why: "watch" | "full"): { playerId: string; secret: string } {
+    if (!this.state.settings.allowSpectator) throw new RoomError(why === "full" ? "This room is full." : "The host isn't allowing spectators in this room.");
+    for (const gone of this.spectators.filter((w) => !w.connected)) {
+      if (this.spectators.length < MAX_SPECTATORS) break;
+      this.removeSpectator(gone.id);
+    }
+    if (this.spectators.length >= MAX_SPECTATORS) throw new RoomError(why === "full" ? "This room is full, and someone is already watching." : "Someone is already watching this room.");
     const playerId = this.nextId("w");
     const secret = Array.from({ length: 4 }, () => randomCode(this.deps.rng, 8)).join("");
     this.spectators.push({ id: playerId, name: (name ?? "").trim().slice(0, 24) || "Watcher", isBot: false, isHost: false, ready: false, connected: true, joinedAt: this.deps.now(), character: null, volunteer: false });
     this.state.secrets[playerId] = secret;
     return { playerId, secret };
+  }
+
+  private removeSpectator(id: string) {
+    this.state.spectators = this.spectators.filter((p) => p.id !== id);
+    delete this.state.secrets[id];
   }
 
   /** Humans whose seat nobody is using right now: the seats a late (re)joiner may take over. */
@@ -267,6 +288,11 @@ export class Room {
     this.state.players = this.state.players.filter((p) => p.id !== id);
     delete this.state.secrets[id];
     if (this.state.hostThief === id) this.state.hostThief = null;
+  }
+
+  private dropSpectator(id: string, message: string, result: HandleResult) {
+    this.removeSpectator(id);
+    (result.dropped ??= []).push({ playerId: id, message });
   }
 
   /** Both players are detectives in the current round (for team-only messages). */
@@ -353,7 +379,9 @@ export class Room {
         this.requireLobby();
         const s = this.state.settings;
         this.state.settings = { ...s, ...msg.patch, rules: { ...s.rules, ...msg.patch.rules } };
-        this.unreadyAll();
+        // Who may watch isn't a rule of the game: it shouldn't make everyone ready up again.
+        if (Object.keys(msg.patch).some((k) => k !== "allowSpectator")) this.unreadyAll();
+        if (!this.state.settings.allowSpectator) for (const w of [...this.spectators]) this.dropSpectator(w.id, "The host turned spectators off.", result);
         result.changed = true;
         return;
       }
@@ -392,8 +420,14 @@ export class Room {
 
       case "kick": {
         this.requireHost(playerId);
-        this.requireLobby();
         if (msg.playerId === playerId) throw new RoomError("You can't remove yourself.");
+        // The spectator can be removed at any time; seats only in the lobby.
+        if (this.isSpectator(msg.playerId)) {
+          this.dropSpectator(msg.playerId, "The host removed you from the room.", result);
+          result.changed = true;
+          return;
+        }
+        this.requireLobby();
         this.removePlayer(msg.playerId);
         result.changed = true;
         this.maybeStart();

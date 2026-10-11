@@ -370,7 +370,7 @@ function play(e: GameEvent, ctx: Ctx): number {
     case "roundOver":
       useFx.setState({ showResult: true, dice: null, diceDocked: false });
       // Spectators don't have a side to win or lose for.
-      if (view.role) (iAmThief === (e.result.winner === "thief") ? sfx.roundWin : sfx.roundLose)();
+      if (view.role === "thief" || view.role === "detective") (iAmThief === (e.result.winner === "thief") ? sfx.roundWin : sfx.roundLose)();
       return 0;
     case "locksPlaced":
     case "locksShuffled":

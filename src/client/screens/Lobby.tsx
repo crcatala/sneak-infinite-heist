@@ -112,7 +112,7 @@ export function Lobby() {
                 <Icon name="bot" size={14} /> Solo heist · runs in your browser
               </span>
             ) : (
-              <ShareCode code={view.code} />
+              <ShareCode code={view.code} canWatch={s.allowSpectator !== false && !solo} />
             )}
           </div>
           <VolumeControl />
@@ -169,12 +169,12 @@ function dropMouseFocus(e: { detail: number; currentTarget: HTMLElement }) {
 
 const takenBy = (players: Player[], id: DetectiveColour, me: string | null) => players.find((p) => p.character === id && p.id !== me);
 
-function ShareCode({ code }: { code: string }) {
+function ShareCode({ code, canWatch }: { code: string; canWatch: boolean }) {
   const toast = useStore((s) => s.toast);
-  const [copied, setCopied] = useState<"code" | "link" | null>(null);
+  const [copied, setCopied] = useState<"code" | "link" | "watch" | null>(null);
   const url = `${location.origin}/r/${code}`;
-  const copy = async (what: "code" | "link") => {
-    if (await copyText(what === "code" ? code : url)) {
+  const copy = async (what: "code" | "link" | "watch") => {
+    if (await copyText(what === "code" ? code : what === "watch" ? `${url}?watch=1` : url)) {
       setCopied(what);
       sfx.menuSelect();
       setTimeout(() => setCopied(null), 1500);
@@ -190,6 +190,11 @@ function ShareCode({ code }: { code: string }) {
       <button className="btn small" onClick={() => void copy("link")}>
         <Icon name={copied === "link" ? "check" : "link"} size={16} /> {copied === "link" ? "Copied!" : "Copy invite link"}
       </button>
+      {canWatch && (
+        <button className="btn small ghost" onClick={() => void copy("watch")} title="A link that joins as the spectator, without a seat">
+          <Icon name={copied === "watch" ? "check" : "eye"} size={16} /> {copied === "watch" ? "Copied!" : "Copy watch link"}
+        </button>
+      )}
     </div>
   );
 }
@@ -286,9 +291,14 @@ function Crew({ isHost, solo }: { isHost: boolean; solo: boolean }) {
         <div className="lb-watchers">
           <span className="label">Watching</span>
           {view.spectators.map((w) => (
-            <span key={w.id} className="chip dim">
+            <span key={w.id} className={`chip dim${w.connected ? "" : " away"}`}>
               <Icon name="eye" size={12} /> {w.name}
               {w.id === view.you && " (you)"}
+              {isHost && (
+                <button className="lb-unwatch" aria-label={`Remove ${w.name}`} title={`Remove ${w.name}`} onClick={() => send({ t: "kick", playerId: w.id })}>
+                  <Icon name="x" size={12} />
+                </button>
+              )}
             </span>
           ))}
           {!me && view.spectators.some((w) => w.id === view.you) && view.players.length < MAX_SEATS && (
@@ -585,6 +595,9 @@ function RulesSheet({ isHost, onClose }: { isHost: boolean; onClose: () => void 
             </Rule>
             <Rule name="Bot skill" help="Rookie bots fumble about a third of their decisions. Pro bots deduce everything the rules allow.">
               <Seg isHost={isHost} value={s.botSkill} options={[["rookie", "Rookie"], ["pro", "Pro"]]} onPick={(botSkill) => set({ t: "settings", patch: { botSkill } })} />
+            </Rule>
+            <Rule name="Spectator" help="One person can watch from the detectives' side without a seat. Everyone sees when someone is watching.">
+              <Seg isHost={isHost} value={s.allowSpectator !== false} options={[[true, "Allowed"], [false, "Off"]]} onPick={(allowSpectator) => set({ t: "settings", patch: { allowSpectator } })} />
             </Rule>
           </div>
         </div>

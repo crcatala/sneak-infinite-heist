@@ -81,7 +81,7 @@ export function Game() {
       {pointerToggle && <PointerToggle />}
       <EmoteBar view={view} />
       <PauseMenu view={view} />
-      {view.role === "spectator" && <div className="peek-badge watching-badge">👀 Watching: public information only</div>}
+      {view.role === "spectator" && <div className="peek-badge watching-badge">👀 Watching with the detectives</div>}
       {view.viewAs && <div className="peek-badge">Peeking as {view.viewAs} (debug)</div>}
     </div>
   );
@@ -151,7 +151,7 @@ function useKeys() {
       if (k === "l" || k === "L") return ui.set({ logOpen: !ui.logOpen });
       if ((k === "p" || k === "P") && view.role === "thief") return ui.set({ padOpen: !ui.padOpen });
       if ((k === "d" || k === "D") && view.role === "thief") return ui.set({ danger: !ui.danger });
-      if ((k === "h" || k === "H") && view.role === "detective") return ui.set({ heat: !ui.heat });
+      if ((k === "h" || k === "H") && (view.role === "detective" || view.role === "spectator")) return ui.set({ heat: !ui.heat });
 
       // Board cursor with the arrow keys; Enter "clicks" it.
       const board = getBoard(game.board);
