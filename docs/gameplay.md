@@ -66,6 +66,27 @@ either order:
 On phones in portrait, the board turns 90° (north on the right; the gold "N" on the plaza marks it) so the long side
 runs up the screen.
 
+## Reading the table
+
+**Turn order.** The turn pill at the top lists the whole rotation as portraits, for everyone (thief and spectator
+too). Whoever plays now is the large glowing face, the next turn has a dashed ring and a "next" tag, and the thief's
+turns are the small charcoal faces between the detectives: the thief moves after *every* detective, so a game with
+three detectives reads `thief › Cinnabar › thief › Dot › thief › Sage ↻`. "You" marks your own pawns. The chevron in
+the pill's top right collapses it to a face, whose turn it is and the clock; the choice is remembered per browser.
+On a short landscape screen (under 520px tall) the rotation is always hidden.
+
+**Watching a detective decide.** Everything a detective has picked but not confirmed shows on everyone's board,
+thief and spectator included. Hovering never does.
+
+| When | Everyone else sees |
+|---|---|
+| The roll lands | A dashed outline, in the mover's colour, on every space they could end on |
+| They pick a space | The filled tile, the route, a ghost pawn, the step count and an "Alex · 4 steps" tag |
+| They pick an Eye target | The sightline of their own eyes or the camera, and "Alex · asking camera 3" |
+| Setup: they lift a painting, camera or pawn | Its old space ringed in their colour, and "Alex is moving a painting" |
+
+Lock setup is never shown, because the faces are hidden from the thief.
+
 ## The lobby
 
 The lobby is a one-screen character select that sizes itself from the window height, so it fits anything from
