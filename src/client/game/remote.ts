@@ -81,8 +81,10 @@ export function remotePreview(view: RoomView, game: GameView, intents: Record<st
   const mover = activePawn(game);
   const t = game.turn;
   const turn = t.kind === "detective" ? t : null;
-  const rolled = game.phase === "play" && mover && mover.cell !== null && turn?.roll && !turn.moved && !turn.awaitingThief ? turn.roll : null;
-  const ends = mover && rolled ? detectiveEnds(game, mover, rolled.move) : null;
+  // The mover has rolled and the thief isn't answering. They can still pick an Eye target after moving, so this
+  // holds for the whole turn; only the reach outline and a chosen space stop once they've moved.
+  const rolled = game.phase === "play" && mover && mover.cell !== null && turn?.roll && !turn.awaitingThief ? turn.roll : null;
+  const ends = mover && rolled && !turn?.moved ? detectiveEnds(game, mover, rolled.move) : null;
   if (ends && mover && mover.controller !== view.you) {
     for (const c of ends.keys()) out.tiles.push({ cell: c, colour: legalOutline(hexOf(mover)), alpha: 0.85, style: watched.has(c) ? 6 : 5 });
   }
@@ -92,23 +94,23 @@ export function remotePreview(view: RoomView, game: GameView, intents: Record<st
     const who = playerName(view, by);
 
     if (intent.k === "turn") {
-      if (!ends || !mover || !turn || mover.id !== intent.pawn || mover.controller !== by) continue;
+      if (!rolled || !mover || !turn || mover.id !== intent.pawn || mover.controller !== by) continue;
       const colour = hexOf(mover);
       let tagCell = mover.cell!;
       let tagText: string | null = null;
-      const move = intent.move !== undefined && ends.has(intent.move) ? intent.move : undefined;
+      const move = ends && intent.move !== undefined && ends.has(intent.move) ? intent.move : undefined;
       if (move !== undefined) {
-        const steps = ends.get(move)!;
+        const steps = ends!.get(move)!;
         out.tiles.push({ cell: move, colour, alpha: 0.75, style: 0 });
         if (steps > 0) out.badges.push({ cell: move, n: steps, colour });
-        const route = previewRoute(board, mover.cell!, move, ends, game.rules.detectiveMayStay);
+        const route = previewRoute(board, mover.cell!, move, ends!, game.rules.detectiveMayStay);
         if (route) out.path = { from: mover.cell!, path: route, colour };
         out.pawnGhost = { pawn: mover.id, cell: move };
         tagCell = move;
         tagText = steps > 0 ? `${who} · ${plural(steps)}` : `${who} · staying`;
       }
       const eye = intent.eye;
-      if (eye !== undefined && !turn.acted && turn.roll?.action === "eye") {
+      if (eye !== undefined && !turn.acted && rolled.action === "eye") {
         const camera = typeof eye === "number" ? game.cameras.find((c) => c.n === eye) : undefined;
         const from = eye === "self" ? tagCell : camera?.cell;
         if (from !== undefined && !(typeof eye === "number" && game.power.cut)) {
@@ -144,4 +146,25 @@ export function remotePreview(view: RoomView, game: GameView, intents: Record<st
     out.tags.push({ cell: pawn.cell, text: `${who} is moving ${pawnName(game, pawn.id)}`, colour });
   }
   return out;
+}
+
+/**
+ * Decides when the local detective's pending choice goes out. It sends on change, and again after a reconnect
+ * (even when there is nothing pending), because the room keeps no memory: a selection made or taken back while
+ * the socket was down would otherwise leave the others looking at an old one.
+ */
+export function createIntentSender(send: (intent: Intent | null) => void) {
+  let last = "null";
+  let down = false;
+  return (intent: Intent | null, open: boolean, canSend: boolean) => {
+    if (!open) {
+      down = true;
+      return;
+    }
+    const key = JSON.stringify(intent);
+    if (!down && key === last) return;
+    down = false;
+    last = key;
+    if (canSend) send(intent);
+  };
 }

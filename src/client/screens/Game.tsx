@@ -17,9 +17,11 @@ import { activePawn } from "../game/derive";
 import { useBoardInteraction } from "../game/interact";
 import { defersToFocusedControl, primaryIntent } from "../game/keys";
 import { musicFor } from "../game/musicFor";
-import { intentToSend } from "../game/remote";
+import { createIntentSender, intentToSend } from "../game/remote";
 import { ingest, resetPlayer, setFastForward, skipFx, useFx } from "../game/present";
+import { turnSequence } from "../game/turnOrder";
 import { useGameUi } from "../game/uiStore";
+import { usePrefs } from "../prefs";
 import { GameScene } from "../scene/GameScene";
 import { setMusic } from "../sfx";
 import { useStore } from "../store";
@@ -71,8 +73,10 @@ export function Game() {
   useHudWatch();
 
   const pointerToggle = showsPointerToggle(view, game);
+  // The turn pill is tall while it lists the rotation, and the "last move" card is docked below the top bar.
+  const orderOpen = !usePrefs((s) => s.turnOrderCollapsed) && turnSequence(game) !== null;
   return (
-    <div className={`screen game-screen role-${view.role ?? "spectator"}${game.power.cut ? " dark" : ""}${pointerToggle ? " has-pointer-toggle" : ""}`}>
+    <div className={`screen game-screen role-${view.role ?? "spectator"}${game.power.cut ? " dark" : ""}${pointerToggle ? " has-pointer-toggle" : ""}${orderOpen ? " order-open" : ""}`}>
       <GameScene view={view} game={game} ix={ix} />
       {game.power.cut && <div className="power-vignette" aria-hidden />}
       <TurnBar view={view} game={game} />
@@ -96,27 +100,23 @@ export function Game() {
 
 /**
  * Lets the rest of the room watch a detective decide: whenever the viewer's own pending choice (a picked space,
- * an Eye target, a lifted piece) changes, it goes out as an `intent`, and `null` takes it back. A reconnect
- * sends the current one again, because the room keeps no memory of it.
+ * an Eye target, a lifted piece) changes, it goes out as an `intent`, and `null` takes it back (see
+ * `createIntentSender` for the reconnect rule).
  */
 function useShareIntent(view: RoomView, game: GameView) {
   const moveDest = useGameUi((s) => s.moveDest);
   const eyeTarget = useGameUi((s) => s.eyeTarget);
   const held = useGameUi((s) => s.held);
   const status = useStore((s) => s.status);
-  const send = useStore((s) => s.send);
   const intent = intentToSend(view, game, { moveDest, eyeTarget, held });
   const key = JSON.stringify(intent);
-  const sent = useRef("null");
+  const canSend = view.role === "detective" && game.phase !== "roundOver";
+  const sender = useRef<ReturnType<typeof createIntentSender>>(null);
+  sender.current ??= createIntentSender((i) => useStore.getState().send({ t: "intent", intent: i }));
   useEffect(() => {
-    sent.current = "null";
-  }, [status]);
-  useEffect(() => {
-    if (key === sent.current || status !== "open") return;
-    sent.current = key;
-    send({ t: "intent", intent });
+    sender.current!(intent, status === "open", canSend);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, status]);
+  }, [key, status, canSend]);
 }
 
 /**

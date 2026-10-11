@@ -129,6 +129,7 @@ function open() {
         break;
       case "state":
         useStore.setState({ view: msg.view, clockOffset: msg.view.serverNow - Date.now() });
+        store.pruneIntents((id) => msg.view.players.some((p) => p.id === id && p.connected));
         break;
       case "claim":
         // The game started without us (or we're on a new device): show the seat picker.
@@ -165,6 +166,8 @@ function open() {
 
   ws.onclose = (event) => {
     socket = null;
+    // Anything others picked while we couldn't hear about it may have been taken back since.
+    useStore.getState().clearIntents();
     clearInterval(heartbeat);
     // 4xxx closes are the server saying "don't come back" (refused, missing, deleted, offline).
     if (refusal || (event.code >= 4000 && event.code < 5000)) {

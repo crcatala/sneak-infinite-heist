@@ -1783,6 +1783,14 @@
   }
 }
 
+/* On a mid-width window the centred turn pill reaches over the "last move" card in the top right: with the
+   rotation open (it is tall), the card moves below it. */
+@media (min-width: 761px) and (max-width: 1160px) {
+  .game-screen.order-open {
+    --dock-top: 148px;
+  }
+}
+
 /* --- phones ------------------------------------------------------------------------------------ */
 
 @media (max-width: 760px) {
@@ -1887,6 +1895,10 @@
     --dock-top: 112px;
     --dock-w: calc(100vw - 12px);
     --dock-left: 6px;
+  }
+  /* The turn pill is tall while it lists the rotation, so the "last move" card sits below it. */
+  .game-screen.order-open {
+    --dock-top: 184px;
   }
   .announce.stage-hero {
     top: 24vh;

@@ -56,6 +56,8 @@ interface Store {
   /** Records (or, with null, takes back) a detective's pending choice. */
   setIntent: (by: string, intent: Intent | null) => void;
   clearIntents: () => void;
+  /** Forgets the choices of players who are no longer connected, so a return can't bring back a stale one. */
+  pruneIntents: (connected: (id: string) => boolean) => void;
 }
 
 let nextId = 1;
@@ -109,6 +111,11 @@ export const useStore = create<Store>((set, get) => ({
       return { intents: { ...s.intents, [by]: intent } };
     }),
   clearIntents: () => set((s) => (Object.keys(s.intents).length ? { intents: {} } : s)),
+  pruneIntents: (connected) =>
+    set((s) => {
+      const keep = Object.entries(s.intents).filter(([id]) => connected(id));
+      return keep.length === Object.keys(s.intents).length ? s : { intents: Object.fromEntries(keep) };
+    }),
 }));
 
 /** Server clock "now", corrected for the local clock offset (for turn timers). */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { intentToSend, remotePreview } from "../src/client/game/remote";
+import { createIntentSender, intentToSend, remotePreview } from "../src/client/game/remote";
 import { detectiveEnds } from "../src/client/game/derive";
 import { legalOutline } from "../src/client/game/colours";
 import { CLASSIC_BOARD } from "../src/shared/board/classic";
@@ -118,6 +118,26 @@ describe("what others see of a detective's turn", () => {
     expect(p.tiles.filter((t) => t.colour === "#6fe8ff").map((t) => t.cell).sort()).toEqual([...board.sight[c(4, 3)]].sort());
   });
 
+  it("still shows an Eye target after the pawn has moved, but no longer the reach or a chosen space", () => {
+    // Move first, then look: the usual order. The Eye is used from where the pawn now stands.
+    const g = act(rolled(), D1, { a: "move", dest: c(4, 5) });
+    const { view, game } = room(g, THIEF, "thief");
+    expect(remotePreview(view, game, {}, none).tiles).toEqual([]);
+    const self = remotePreview(view, game, { [D1]: { k: "turn", pawn: "d1", eye: "self" } }, none);
+    expect(new Set(self.tiles.map((t) => t.cell))).toEqual(new Set(board.sight[c(4, 5)]));
+    expect(self.tags).toEqual([{ cell: c(4, 5), text: "Alex · Eye", colour: "#e8484f" }]);
+    const camera = remotePreview(view, game, { [D1]: { k: "turn", pawn: "d1", eye: 3 } }, none);
+    expect(camera.tags.map((t) => t.text)).toEqual(["Alex · asking camera 3"]);
+    // A move that was picked before confirming is stale now.
+    const stale = remotePreview(view, game, { [D1]: { k: "turn", pawn: "d1", move: c(4, 4), eye: "self" } }, none);
+    expect(stale.badges).toEqual([]);
+    expect(stale.pawnGhost).toBeNull();
+    // And once the action is used there is nothing left to show.
+    const done = act(g, D1, { a: "skipAction" });
+    const after = room(done, THIEF, "thief");
+    expect(remotePreview(after.view, after.game, { [D1]: { k: "turn", pawn: "d1", eye: "self" } }, none).tiles).toEqual([]);
+  });
+
   it("ignores an Eye target when the die isn't an Eye, and camera targets while the power is out", () => {
     const g = rolled();
     g.forcedRoll = undefined;
@@ -213,5 +233,47 @@ describe("what a detective shares", () => {
     expect(intentToSend(r.view, r.game, { ...ui, held: { kind: "pawn", pawn: "d1" } })).toEqual({ k: "liftPawn", pawn: "d1" });
     // A piece still "held" from the previous phase isn't a pawn lift.
     expect(intentToSend(r.view, r.game, { ...ui, held: { kind: "piece", from: c(4, 3) } })).toBeNull();
+  });
+});
+
+describe("when the choice is re-sent", () => {
+  const pick: Intent = { k: "turn", pawn: "d1", move: 5 };
+  const run = () => {
+    const sent: (Intent | null)[] = [];
+    return { sent, update: createIntentSender((i) => sent.push(i)) };
+  };
+
+  it("sends on change only, and nothing at the start", () => {
+    const { sent, update } = run();
+    update(null, true, true);
+    update(pick, true, true);
+    update(pick, true, true);
+    update(null, true, true);
+    expect(sent).toEqual([pick, null]);
+  });
+
+  it("re-sends a pending choice after a reconnect", () => {
+    const { sent, update } = run();
+    update(pick, true, true);
+    update(pick, false, true);
+    update(pick, true, true);
+    expect(sent).toEqual([pick, pick]);
+  });
+
+  it("sends the take-back after a reconnect when it was cancelled while offline", () => {
+    const { sent, update } = run();
+    update(pick, true, true);
+    update(pick, false, true);
+    update(null, false, true); // taken back with the socket down: nothing can go out
+    update(null, true, true);
+    expect(sent).toEqual([pick, null]);
+  });
+
+  it("stays quiet for anyone who can't send", () => {
+    const { sent, update } = run();
+    update(null, false, false);
+    update(null, true, false);
+    update(pick, true, false);
+    expect(sent).toEqual([]);
   });
 });
