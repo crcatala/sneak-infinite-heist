@@ -54,6 +54,9 @@ const PATHS: Record<string, string> = {
   zzz: "M4 5h6l-6 7h6 M13 12h5l-5 6h5",
   shuffle: "M3 7h4c3 0 4 10 8 10h6 M3 17h4c1.5 0 2.4-2.4 3.4-4.5 M14 9c.6-1.2 1.5-2 3-2h4 M18 4l3 3-3 3 M18 14l3 3-3 3",
   steal: "M5 12h14v8H5z M12 2v7 M8.5 5.5 12 2l3.5 3.5",
+  chevronUp: "M6 15l6-6 6 6",
+  chevronDown: "M6 9l6 6 6-6",
+  loop: "M17 3l3 3-3 3 M4 11V9a3 3 0 0 1 3-3h13 M7 21l-3-3 3-3 M20 13v2a3 3 0 0 1-3 3H4",
 };
 
 export type IconName = keyof typeof PATHS;
