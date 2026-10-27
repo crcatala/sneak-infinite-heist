@@ -27,6 +27,11 @@ export interface RoomDeps {
   rng: Rng;
   /** Allows debug commands that reveal hidden information (solo mode, local dev). */
   cheats: boolean;
+  /**
+   * The host may fill seats with bots. Solo only: online, each bot move is a Durable Object alarm, and alarms are
+   * spaced at least 2 s apart (docs/architecture.md, "Alarm backstops"), which made online bots sluggish.
+   */
+  botSeats: boolean;
 }
 
 export interface HandleResult {
@@ -159,7 +164,7 @@ export class Room {
 
   startBlocker(): string | null {
     const seats = this.state.players.length;
-    if (seats < MIN_SEATS) return "You need at least 2 seats: invite a friend or add a bot.";
+    if (seats < MIN_SEATS) return this.deps.botSeats ? "You need at least 2 seats: invite a friend or add a bot." : "You need at least 2 players: invite a friend.";
     const s = this.state.settings;
     if (s.mode === "match" && this.humans().length === 0) return "A match needs at least one human thief.";
     if (s.thiefSelection === "host" && !this.player(this.state.hostThief ?? "")) return "The host needs to pick the thief.";
@@ -397,6 +402,7 @@ export class Room {
       }
 
       case "addBot": {
+        if (!this.deps.botSeats) throw new RoomError("Bots are for solo play. Online rooms need friends!");
         this.requireHost(playerId);
         this.requireLobby();
         if (this.state.players.length >= MAX_SEATS) throw new RoomError(`At most ${MAX_SEATS} seats (including bots).`);

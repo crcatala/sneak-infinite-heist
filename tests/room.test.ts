@@ -9,7 +9,7 @@ import { mulberry32 } from "../src/shared/rng";
 
 function testDeps(seed = 1, cheats = false): RoomDeps & { advance(ms: number): void } {
   let t = 1_000_000;
-  return { now: () => t, rng: mulberry32(seed), cheats, advance: (ms: number) => void (t += ms) };
+  return { now: () => t, rng: mulberry32(seed), cheats, botSeats: true, advance: (ms: number) => void (t += ms) };
 }
 
 function newRoom(seed = 1, cheats = false) {

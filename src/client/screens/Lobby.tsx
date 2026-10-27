@@ -267,23 +267,13 @@ function Crew({ isHost, solo }: { isHost: boolean; solo: boolean }) {
         {!solo &&
           Array.from({ length: open }, (_, i) => (
             <li key={`open${i}`} className="lb-who open">
-              {isHost && i === 0 ? (
-                <button className="lb-who-btn" onClick={() => send({ t: "addBot" })} title="Fill the seat with a bot">
-                  <span className="lb-avatar plain add">
-                    <Icon name="bot" />
-                  </span>
-                  <b>Add bot</b>
-                  <small>open seat</small>
-                </button>
-              ) : (
-                <div className="lb-who-btn">
-                  <span className="lb-avatar plain empty">
-                    <Icon name="plus" />
-                  </span>
-                  <b>Open seat</b>
-                  <small>&nbsp;</small>
-                </div>
-              )}
+              <div className="lb-who-btn">
+                <span className="lb-avatar plain empty">
+                  <Icon name="plus" />
+                </span>
+                <b>Open seat</b>
+                <small>&nbsp;</small>
+              </div>
             </li>
           ))}
       </ul>
@@ -315,7 +305,9 @@ function Crew({ isHost, solo }: { isHost: boolean; solo: boolean }) {
 function RulesButton({ settings, onOpen }: { settings: RoomSettings; onOpen: () => void }) {
   const r = settings.rules;
   const layout = settings.layout ?? { kind: "classic" };
-  const summary = [layout.kind === "remix" ? `Remix ${layout.seed.toString(36).toUpperCase()}` : "Classic museum", `${r.minPaintingsToEscape} painting${r.minPaintingsToEscape === 1 ? "" : "s"}`, settings.turnTimerSec ? `${settings.turnTimerSec}s timer` : "no timer", `${settings.botSkill} bots`];
+  // Bot seats are solo only, so online rooms have no bot skill to show.
+  const solo = useStore((s) => s.mode === "solo");
+  const summary = [layout.kind === "remix" ? `Remix ${layout.seed.toString(36).toUpperCase()}` : "Classic museum", `${r.minPaintingsToEscape} painting${r.minPaintingsToEscape === 1 ? "" : "s"}`, settings.turnTimerSec ? `${settings.turnTimerSec}s timer` : "no timer", ...(solo ? [`${settings.botSkill} bots`] : [])];
   return (
     <button className="lb-rules-btn" onClick={onOpen} aria-haspopup="dialog">
       <span className="lb-gear">
@@ -484,7 +476,7 @@ function ThiefControls({ isHost }: { isHost: boolean }) {
   const me = view.players.find((p) => p.id === view.you);
   const sel = view.settings.thiefSelection;
   const caption =
-    (sel === "random" ? "Picked at random when everyone is ready (bots included)." : sel === "volunteer" ? "Picked from the volunteers (at random if there are several)." : isHost ? "Tap a player in the crew to make them the thief." : "The host picks the thief.") + (view.settings.mode === "match" ? " In a full match every human takes a turn." : "");
+    (sel === "random" ? "Picked at random when everyone is ready." : sel === "volunteer" ? "Picked from the volunteers (at random if there are several)." : isHost ? "Tap a player in the crew to make them the thief." : "The host picks the thief.") + (view.settings.mode === "match" ? " In a full match every human takes a turn." : "");
   return (
     <div className="lb-thief">
       <div className="lb-thief-row">
@@ -511,6 +503,7 @@ function ThiefControls({ isHost }: { isHost: boolean }) {
 function RulesSheet({ isHost, onClose }: { isHost: boolean; onClose: () => void }) {
   const view = useStore((s) => s.view)!;
   const send = useStore((s) => s.send);
+  const solo = useStore((st) => st.mode === "solo");
   const s = view.settings;
   const r = s.rules;
   const set = (patch: Parameters<typeof send>[0] & { t: "settings" }) => send(patch);
@@ -593,9 +586,11 @@ function RulesSheet({ isHost, onClose }: { isHost: boolean; onClose: () => void 
             <Rule name="Turn timer" help="When time runs out, a bot finishes the turn. The clock pauses if that player drops out.">
               <Seg isHost={isHost} value={s.turnTimerSec} options={[[0, "Off"], [60, "60s"], [90, "90s"], [120, "120s"]]} onPick={(turnTimerSec) => set({ t: "settings", patch: { turnTimerSec: turnTimerSec as 0 } })} />
             </Rule>
-            <Rule name="Bot skill" help="Rookie bots fumble about a third of their decisions. Pro bots deduce everything the rules allow.">
-              <Seg isHost={isHost} value={s.botSkill} options={[["rookie", "Rookie"], ["pro", "Pro"]]} onPick={(botSkill) => set({ t: "settings", patch: { botSkill } })} />
-            </Rule>
+            {solo && (
+              <Rule name="Bot skill" help="Rookie bots fumble about a third of their decisions. Pro bots deduce everything the rules allow.">
+                <Seg isHost={isHost} value={s.botSkill} options={[["rookie", "Rookie"], ["pro", "Pro"]]} onPick={(botSkill) => set({ t: "settings", patch: { botSkill } })} />
+              </Rule>
+            )}
             <Rule name="Spectator" help="One person can watch from the detectives' side without a seat. Everyone sees when someone is watching.">
               <Seg isHost={isHost} value={s.allowSpectator !== false} options={[[true, "Allowed"], [false, "Off"]]} onPick={(allowSpectator) => set({ t: "settings", patch: { allowSpectator } })} />
             </Rule>

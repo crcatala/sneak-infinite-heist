@@ -23,7 +23,7 @@ let session: LocalSession | null = null;
 
 export function startLocal(opts: SoloOptions) {
   stopLocal();
-  const room = new Room(createRoomState("SOLO", Date.now()), { now: () => Date.now(), rng: Math.random, cheats: true });
+  const room = new Room(createRoomState("SOLO", Date.now()), { now: () => Date.now(), rng: Math.random, cheats: true, botSeats: true });
   const { playerId } = room.join({ name: loadName() || "You" });
   const bots = opts.role === "thief" ? Math.max(1, Math.min(3, opts.bots)) : Math.max(1, Math.min(3, opts.bots + 1));
   for (let i = 0; i < bots; i++) room.handle(playerId, { t: "addBot" });

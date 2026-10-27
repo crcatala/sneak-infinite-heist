@@ -112,7 +112,7 @@ good once that step has been done (kept in `localStorage` as `sneak:lobby-hints`
 | Locks | **Shuffled** · Detectives place | When the detectives place the locks, they know which exits are open. |
 | Stay put on a 1 | **Must move** · May stay | The original designers disagreed on this rule. |
 | Turn timer | **Off** · 60 · 90 · 120 s | Out of time, a bot finishes the turn. Pauses while that player is offline. |
-| Bot skill | **Pro** · Rookie | Rookie bots fumble about a third of their decisions. |
+| Bot skill | **Pro** · Rookie | Solo only (online rooms have no bot seats). Rookie bots fumble about a third of their decisions. |
 | Detective aids | Off · **Marks** · Marks + overlay | Team suspect marks, or marks plus the "where could the thief be" heat map. |
 | Museum opens at dawn | **Off** · 20 · 30 · 40 turns | The detectives win if the thief is still inside by then. |
 | Spectator | **Allowed** · Off | Lets one person watch without a seat (see below). Turning it off removes the current watcher. |

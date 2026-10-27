@@ -80,7 +80,8 @@ without it (`tests/worker/roomObject.test.ts` for the first two, `tests/tooling/
 The gap has to stay below the delay the fastest legitimate deadline can tolerate. Here that's a bot step: each
 wake-up runs one, and the next comes 0.9–1.6 s later in play (`BOT_THINK_MS`) or 250–450 ms later while bots
 set up the museum (`BOT_SETUP_MS`). Bots play in an online room when the host adds bot seats, hands an absent
-player's seat to a bot, or a turn timer runs out. Measured on the engine with one human thief and three bots:
+player's seat to a bot, or a turn timer runs out (before bot seats became solo only, also when the host added
+them). Measured on the engine with one human thief and three bots:
 
 | Gap | Bot setup | Bots' share of each round | Ceiling per looping room |
 |---|---|---|---|
@@ -90,9 +91,9 @@ player's seat to a bot, or a turn timer runs out. Measured on the engine with on
 | 250 ms | about 5 s | about 3.7 s | 345,000/day |
 
 We kept the playbook's 2 s: the same ceiling as the other games, and bots in online rooms are the only thing it
-slows. Bots are meant for solo play, which runs in the browser with no alarms and isn't affected; online rooms
-stop offering bot seats in a separate change. A seat handed to a bot, or a turn a bot finishes after its timer ran
-out, moves one step every 2 s (tested). Turn timers (60 s and up) and motion prompts (20 s) fire exactly on time
-when the room was quiet before them, and at most 2 s late when something else woke it in the 2 s before (both
-tested). Revisit if a feature needs alarms more often than every 2 s: lower the gap and update the ceiling
-here and in [Deployment](deployment.md).
+slows. Bots are meant for solo play, which runs in the browser with no alarms and isn't affected, so online rooms
+don't offer bot seats (`RoomDeps.botSeats` is false in the Durable Object). A seat handed to a bot, or a turn a
+bot finishes after its timer ran out, moves one step every 2 s (tested). Turn timers (60 s and up) and motion
+prompts (20 s) fire exactly on time when the room was quiet before them, and at most 2 s late when something else
+woke it in the 2 s before (both tested). Revisit if a feature needs alarms more often than every 2 s: lower the gap
+and update the ceiling here and in [Deployment](deployment.md).
