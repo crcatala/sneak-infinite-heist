@@ -53,3 +53,46 @@ src/
   started game offers the seats nobody is using. The host can hand an absent player's seat to a bot from the pause
   menu.
 
+
+## Alarm backstops
+
+A room's alarm is its "wake me up at" timer: the next bot move, turn deadline, motion prompt or dead-socket check.
+It's the one cost that needs no player. Every wake-up is a billed request and a storage write or two, and if a bug
+made the room keep asking to be woken "now", it would wake every 50 ms for as long as the bug lasted: about 1.7
+million times a day per room, with nobody online. That is how the well-known Durable Object bills of tens of
+thousands of dollars happened. Three backstops, all in `src/worker/roomObject.ts`, each with a test that fails
+without it (`tests/worker/roomObject.test.ts` for the first two, `tests/tooling/alarmCalls.test.ts` for the third):
+
+1. **Wake-ups at least 2 s apart** (`MIN_ALARM_GAP_MS`). `scheduleAlarm` never sets the alarm sooner than 2 s
+   after the last wake-up, so a looping room costs about 43,000 wake-ups a day instead of 1.7 million. The last
+   wake-up time is kept in memory, which is enough: Cloudflare only evicts an idle object after about 10 s, longer
+   than the gap.
+2. **The kill switch reaches alarms.** Alarms survive deploys, including the one `wrangler secret put` triggers,
+   and go straight to the room. So `alarm()` and `webSocketMessage()` check `ONLINE_ENABLED` too
+   (`closeIfOffline`), and so do close events, so one player leaving can't clear the alarm that would tell the
+   others. `scheduleAlarm` drops every alarm while it's off, whoever calls it (a late close event, the constructor). The room's state is kept for when online rooms come back.
+3. **Only `scheduleAlarm` sets the alarm.** `tests/tooling/alarmCalls.test.ts` parses `src/` and fails CI on a
+   direct `setAlarm`/`deleteAlarm` call anywhere else (`destroy` may delete it). It reads names, not types, so
+   `storage["setAlarm"]` would slip past; don't write that.
+
+### Decision: a 2 s gap (2026-10-27)
+
+The gap has to stay below the delay the fastest legitimate deadline can tolerate. Here that's a bot step: each
+wake-up runs one, and the next comes 0.9–1.6 s later in play (`BOT_THINK_MS`) or 250–450 ms later while bots
+set up the museum (`BOT_SETUP_MS`). Bots play in an online room when the host adds bot seats, hands an absent
+player's seat to a bot, or a turn timer runs out. Measured on the engine with one human thief and three bots:
+
+| Gap | Bot setup | Bots' share of each round | Ceiling per looping room |
+|---|---|---|---|
+| none (before) | about 5 s | about 3.7 s | 1.7 million wake-ups/day |
+| 1 s | about 12 s | about 3.7 s | 86,000/day |
+| **2 s** | **about 24 s** | **about 5.9 s** | **43,000/day** |
+| 250 ms | about 5 s | about 3.7 s | 345,000/day |
+
+We kept the playbook's 2 s: the same ceiling as the other games, and bots in online rooms are the only thing it
+slows. Bots are meant for solo play, which runs in the browser with no alarms and isn't affected; online rooms
+stop offering bot seats in a separate change. A seat handed to a bot, or a turn a bot finishes after its timer ran
+out, moves one step every 2 s (tested). Turn timers (60 s and up) and motion prompts (20 s) fire exactly on time
+when the room was quiet before them, and at most 2 s late when something else woke it in the 2 s before (both
+tested). Revisit if a feature needs alarms more often than every 2 s: lower the gap and update the ceiling
+here and in [Deployment](deployment.md).
