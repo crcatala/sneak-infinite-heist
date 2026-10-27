@@ -110,7 +110,7 @@ export class RoomDurableObject extends DurableObject<Env> {
   }
 
   private deps(): RoomDeps {
-    return { now: () => Date.now(), rng: Math.random, cheats: cheatsEnabled(this.env) };
+    return { now: () => Date.now(), rng: Math.random, cheats: cheatsEnabled(this.env), botSeats: false };
   }
 
   // --- RPC (called by the Worker and the invite ledger) ------------------------------------------

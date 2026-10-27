@@ -178,6 +178,20 @@ describe("the spectator on the Durable Object", () => {
   });
 });
 
+describe("bots in online rooms", () => {
+  // Bot seats are solo only: online, every bot move is an alarm, and alarms are at least 2 s apart.
+  it("refuses bot seats", async () => {
+    const { join, send, players } = await openRoom();
+    const host = await join({ name: "Host" });
+
+    await send(host, { t: "addBot" });
+
+    expect(players().some((p) => p.isBot)).toBe(false);
+    expect(received(host).at(-1)).toEqual({ t: "error", message: "Bots are for solo play. Online rooms need friends!" });
+    expect(received(host).filter((m) => m.t === "state").at(-1)).toMatchObject({ view: { startBlocker: "You need at least 2 players: invite a friend." } });
+  });
+});
+
 describe("room presence on the Durable Object", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -219,11 +233,11 @@ describe("room presence on the Durable Object", () => {
     expect(players().find((p) => p.id === playerId(host))?.connected).toBe(true);
 
     // The guest's first message settles presence before it's handled, so a host-only action works.
-    await send(guest, { t: "addBot" });
+    await send(guest, { t: "settings", patch: { turnTimerSec: 60 } });
 
     expect(players().find((p) => p.id === playerId(host))?.connected).toBe(false);
     expect(players().find((p) => p.id === playerId(guest))?.isHost).toBe(true);
-    expect(players().some((p) => p.isBot)).toBe(true);
+    expect((ctx.storage.data.get("state") as RoomState).settings.turnTimerSec).toBe(60);
     expect(ctx.storage.alarm).not.toBeNull();
   });
 
