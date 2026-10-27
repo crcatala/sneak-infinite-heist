@@ -151,8 +151,10 @@ at most one per 2 seconds) and about 60 for presence alarms. A room flooded at i
 16% of the day's row allowance per hour, so about 6 flooded room-hours would use it up.
 
 The table assumes the room's code works. If a bug made a room's alarm loop, the 2 s gap limits it to about
-1,800 wake-ups an hour (43,000 a day), each a request and a storage write or two, until you flip the kill
-switch: most of a day's free writes from one room, or roughly $3–5 a month per looping room on Paid.
+1,800 wake-ups an hour (43,000 a day) until you flip the kill switch. Each is a request (about 43% of the free
+daily requests, from one room) and a row for the alarm; if the loop also changes the room, add its state, the
+summary marker and the invite ledger, up to 4 rows. One such room can use up the free 100,000 rows a day on its
+own, which stops every room until 00:00 UTC. On Paid it's roughly $3–5 a month per looping room.
 
 Duration is the one firm ceiling: it's wall-clock time, so a room awake for an hour costs the same however
 hard it's flooded, and roughly 28 room-hours awake in a day would use it up. The other two rows count only

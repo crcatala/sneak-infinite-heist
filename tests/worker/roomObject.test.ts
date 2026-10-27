@@ -457,6 +457,18 @@ describe("alarm guardrails", () => {
     expect(wakeLog).toContain(deadline);
   });
 
+  it("runs a timer that falls just after a wake-up at most 2 s late", async () => {
+    const { a, b, ctx, wait, wakeLog, engine } = await heist(60);
+    const deadline = (engine() as unknown as Room).state.clock!.turnDeadline!;
+    // Something else (a presence sweep, a bot) wakes the room a second before the deadline.
+    ctx.storage.alarm = deadline - 1000;
+
+    await wait(61 * 1000, [a, b]);
+
+    expect(wakeLog).toEqual([deadline - 1000, deadline + 1000]);
+    expect((engine() as unknown as Room).state.clock!.autoplay).toBe(true);
+  });
+
   it("turns off rooms that are already running when the kill switch is flipped, and they come back after", async () => {
     const { ctx, env, join, send, wait, deliverCloses } = await openRoom();
     const a = await join({ name: "A" });
@@ -496,6 +508,21 @@ describe("alarm guardrails", () => {
 
     expect(ctx.storage.alarm).toBeNull();
     expect(await wait(10 * MINUTE, [])).toBe(0);
+  });
+
+  it("closes everyone when one player leaves after the switch is flipped, before any alarm fires", async () => {
+    const { ctx, env, join, deliverCloses } = await openRoom();
+    const a = await join({ name: "A" });
+    const b = await join({ name: "B" });
+
+    env.ONLINE_ENABLED = "false";
+    // A closes their tab: only their close event reaches the room.
+    a.close(1000);
+    await deliverCloses();
+
+    // Without this, the close would clear the alarm and B would sit in a frozen room until they next acted.
+    expect(b.closed?.code).toBe(CLOSE.offline);
+    expect(ctx.storage.alarm).toBeNull();
   });
 
   it("closes a socket that sends a message after the switch is flipped, before any alarm fires", async () => {

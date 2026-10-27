@@ -253,10 +253,13 @@ export class RoomDurableObject extends DurableObject<Env> {
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
+    // Kill switch on: one player leaving must not clear the alarm that would tell everyone else.
+    if (await this.closeIfOffline()) return;
     await this.handleDisconnect(ws);
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
+    if (await this.closeIfOffline()) return;
     await this.handleDisconnect(ws);
   }
 
