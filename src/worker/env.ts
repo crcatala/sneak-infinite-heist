@@ -16,6 +16,8 @@ export interface Env {
   DEV_CHEATS?: string;
 }
 
+export const OFFLINE_MESSAGE = "Online rooms are turned off right now. Solo mode still works!";
+
 export function onlineEnabled(env: Env): boolean {
   return env.ONLINE_ENABLED?.trim().toLowerCase() !== "false";
 }

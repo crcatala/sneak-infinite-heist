@@ -3,7 +3,7 @@
 // and summaries pushed to the invite that owns the room ("My rooms").
 
 import { DurableObject } from "cloudflare:workers";
-import { cheatsEnabled, inviteStub, type Env } from "./env";
+import { cheatsEnabled, inviteStub, OFFLINE_MESSAGE, onlineEnabled, type Env } from "./env";
 import { presenceSweepAt } from "../shared/presence";
 import { CLOSE, clientMessageSchema, type ClientMessage, type ServerMessage } from "../shared/protocol";
 import { FloodControl, type FloodSnapshot } from "../shared/rateLimit";
@@ -36,6 +36,14 @@ const ACTIVITY_PUSH_MS = 30 * 60 * 1000;
 /** If a deadline has passed but a tick couldn't advance the room, retry this much later. */
 const STUCK_ALARM_BACKOFF_MS = 60 * 1000;
 /**
+ * Backstop against an alarm loop: the alarm never fires within this long of its last wake-up, whatever
+ * the engine or presence logic asks for. A bug that keeps asking for "now" then costs one wake (a request
+ * and a write or two) every 2 s, about 43,000 a day, instead of one every 50 ms (1.7 million).
+ * Keep it below the delay the fastest legitimate deadline can tolerate (docs/architecture.md, "Alarm backstops").
+ * One wake handles every overdue deadline, so close deadlines merge.
+ */
+const MIN_ALARM_GAP_MS = 2000;
+/**
  * Clients send a raw "ping" every 10 s, answered by the runtime without waking this object. A socket
  * with no ping for this long is treated as gone (sleeping laptop, dropped Wi-Fi: no close event
  * ever arrives). Generous because browsers throttle timers in background tabs to once a minute.
@@ -67,6 +75,11 @@ export class RoomDurableObject extends DurableObject<Env> {
   /** Flood control, in memory only (see shared/rateLimit.ts). */
   private flood = new FloodControl(Date.now());
   private floodSavedAt = 0;
+  /**
+   * When the alarm last fired, for MIN_ALARM_GAP_MS. Memory is enough: an object is only evicted after
+   * ~10 s idle, longer than the gap, so a fresh object starting from 0 can't wake faster than allowed.
+   */
+  private lastWakeAt = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -192,6 +205,7 @@ export class RoomDurableObject extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer): Promise<void> {
+    if (await this.closeIfOffline()) return;
     const room = this.room;
     const att = ws.deserializeAttachment() as Attachment | null;
     if (!room || !att) return;
@@ -298,6 +312,8 @@ export class RoomDurableObject extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     if (!this.room) return;
+    this.lastWakeAt = Date.now();
+    if (await this.closeIfOffline()) return;
     await this.sweepStaleSockets();
     const progressed = this.room.tick();
     if (progressed) {
@@ -306,6 +322,26 @@ export class RoomDurableObject extends DurableObject<Env> {
       await this.pushSummary(false);
     }
     await this.scheduleAlarm(progressed);
+  }
+
+  /**
+   * The kill switch (ONLINE_ENABLED=false) for rooms that are already running: the Worker only stops
+   * new requests, while alarms (which survive the redeploy that flipping the switch causes) and open
+   * sockets reach this object directly. Closes the sockets and lets scheduleAlarm, which also checks
+   * the switch, clear the alarm. The room is kept, so it carries on when online rooms come back.
+   */
+  private async closeIfOffline(): Promise<boolean> {
+    if (onlineEnabled(this.env)) return false;
+    for (const ws of this.ctx.getWebSockets()) {
+      this.sendTo(ws, { t: "closed", code: CLOSE.offline, message: OFFLINE_MESSAGE });
+      try {
+        ws.close(CLOSE.offline, "online rooms off");
+      } catch {
+        /* already closing */
+      }
+    }
+    await this.scheduleAlarm();
+    return true;
   }
 
   // --- flood control -------------------------------------------------------------------------
@@ -351,11 +387,22 @@ export class RoomDurableObject extends DurableObject<Env> {
    * Keeps the storage alarm in line with the next deadline (turn timer, bot move, motion prompt).
    * Only writes when it changes (every setAlarm/deleteAlarm is a billed write). `progressed` = false
    * means the last tick did nothing: if a deadline is still overdue, back off instead of re-firing.
+   * The only place that sets the alarm (tests/tooling/alarmCalls.test.ts keeps it that way).
    */
   private async scheduleAlarm(progressed = true) {
     const current = await this.ctx.storage.getAlarm();
-    let next = this.room?.nextAlarm() ?? null;
     const now = Date.now();
+    // Kill switch on: no alarm at all, whoever calls this (a late close event, the constructor).
+    let next = onlineEnabled(this.env) ? this.nextWake(current, now, progressed) : null;
+    if (next !== null) next = Math.max(next, this.lastWakeAt + MIN_ALARM_GAP_MS);
+    if (next === current) return;
+    if (next === null) await this.ctx.storage.deleteAlarm();
+    else await this.ctx.storage.setAlarm(next);
+  }
+
+  /** The earliest of the next game deadline and the next presence sweep, or null. */
+  private nextWake(current: number | null, now: number, progressed: boolean): number | null {
+    let next = this.room?.nextAlarm() ?? null;
     if (next !== null) {
       if (!progressed && next <= now) {
         console.warn(`Room ${this.room?.state.code}: deadline overdue but nothing advanced; backing off.`);
@@ -372,9 +419,7 @@ export class RoomDurableObject extends DurableObject<Env> {
     }));
     const sweep = presenceSweepAt(current, now, live.length, lastActivity);
     if (sweep !== null) next = next === null ? sweep : Math.min(next, sweep);
-    if (next === current) return;
-    if (next === null) await this.ctx.storage.deleteAlarm();
-    else await this.ctx.storage.setAlarm(next);
+    return next;
   }
 
   /**

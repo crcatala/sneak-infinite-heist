@@ -79,10 +79,15 @@ echo false | npx wrangler secret put ONLINE_ENABLED   # online rooms off
 npx wrangler secret delete ONLINE_ENABLED             # back on
 ```
 
-The Worker checks the switch on every new request; the rooms themselves don't. Players already in a room are
-cut off because `wrangler secret put` deploys a new version straight away, and every deploy restarts all
-Durable Objects and drops their websockets. When their browsers try to reconnect, the Worker refuses them,
-and the client stops retrying. With gradual deployments (`wrangler versions secret put`), the switch only
+The Worker checks the switch on every new request. `wrangler secret put` deploys a new version straight away,
+but that doesn't reliably disconnect players already in a room: in a test on another of these games
+(2026-10-27), an idle player's socket stayed open and they only saw "Online rooms are turned off" when they next
+did something. So each room checks the switch itself whenever a message reaches it or its alarm fires (alarms
+survive a deploy): it closes its sockets and stops its timers, bot moves and presence checks, keeping its state
+for when online rooms come back. In practice an active player sees the notice within about a minute (the next
+presence check or deadline) and an idle one at their next action; until then they cost nothing. Browsers that
+reconnect are refused by the Worker, and the client stops retrying. A room whose alarm was misbehaving stops at
+its next wake-up, at most 2 s later. With gradual deployments (`wrangler versions secret put`), the switch only
 takes effect once that version is fully deployed. Solo mode keeps working either way: it runs entirely in the
 browser.
 
@@ -105,7 +110,8 @@ Sneak! Infinite Heist is built to stay inside Cloudflare's free Workers plan:
   requests. A 4-player, hour-long game sends a few hundred messages: well under 1% of the free daily
   allowance.
 - **Wake-ups are bounded.** Timers, bot moves and dead-socket checks use storage alarms, and an alarm is only
-  rewritten when it changes (each write is billed). A room in use checks for dead sockets once a minute;
+  rewritten when it changes (each write is billed). A room never wakes within 2 s of its last wake-up, whatever it
+  asks for ([Alarm backstops](architecture.md#alarm-backstops)). A room in use checks for dead sockets once a minute;
   after 10 minutes with no joins or messages it stops checking and sleeps, so a tab left open overnight no
   longer keeps waking it. The next join or message checks right away, so a player whose device died in the
   meantime frees their seat (and hands over the host) at once.
@@ -143,6 +149,10 @@ pushed summary" marker and the invite's room ledger (in another Durable Object, 
 up to 4 per change, so 3,600 × 4, plus up to 1,800 for flood snapshots (only while someone is being throttled,
 at most one per 2 seconds) and about 60 for presence alarms. A room flooded at its limits therefore uses roughly
 16% of the day's row allowance per hour, so about 6 flooded room-hours would use it up.
+
+The table assumes the room's code works. If a bug made a room's alarm loop, the 2 s gap limits it to about
+1,800 wake-ups an hour (43,000 a day), each a request and a storage write or two, until you flip the kill
+switch: most of a day's free writes from one room, or roughly $3–5 a month per looping room on Paid.
 
 Duration is the one firm ceiling: it's wall-clock time, so a room awake for an hour costs the same however
 hard it's flooded, and roughly 28 room-hours awake in a day would use it up. The other two rows count only

@@ -5,6 +5,10 @@ import type { Env } from "../../src/worker/env";
 import { CLOSE, type ClientMessage, type ServerMessage } from "../../src/shared/protocol";
 import { RATE_LIMITS } from "../../src/shared/rateLimit";
 import type { RoomState } from "../../src/shared/roomTypes";
+import type { Room } from "../../src/shared/room";
+import { getBoard } from "../../src/shared/board/model";
+import { thiefDestinations } from "../../src/shared/board/paths";
+import { mulberry32 } from "../../src/shared/rng";
 
 const CODE = "TESTROOM";
 const MINUTE = 60 * 1000;
@@ -12,7 +16,7 @@ const MINUTE = 60 * 1000;
 /** A room Durable Object on the fake runtime, plus helpers to drive it like the runtime would. */
 async function openRoom() {
   const ctx = new FakeState();
-  const env = { INVITES: { idFromName: (name: string) => name, get: () => ({ updateRoom: async () => {} }) } };
+  const env: Record<string, unknown> = { INVITES: { idFromName: (name: string) => name, get: () => ({ updateRoom: async () => {} }) } };
   const make = () => new RoomDurableObject(ctx as unknown as DurableObjectState, env as unknown as Env);
   let room = make();
   await room.init(CODE, "test-invite");
@@ -33,12 +37,14 @@ async function openRoom() {
   const players = () => (ctx.storage.data.get("state") as RoomState).players;
 
   /** Lets time pass, firing alarms as they come due. `alive` keep heartbeating; others are silent. */
+  const wakeLog: number[] = [];
   const wait = async (ms: number, alive: FakeSocket[]) => {
     const end = Date.now() + ms;
     let wakes = 0;
     for (let at = ctx.storage.alarm; at !== null && at <= end; at = ctx.storage.alarm) {
       vi.setSystemTime(at);
       for (const ws of alive) ctx.ping(ws);
+      wakeLog.push(at);
       await room.alarm();
       wakes++;
     }
@@ -47,7 +53,14 @@ async function openRoom() {
     return wakes;
   };
 
-  return { ctx, join, send, sendRaw, players, wait, hibernate };
+  /** The runtime later delivers a close event for each socket the room closed; the fake doesn't, so tests do. */
+  const deliverCloses = async () => {
+    for (const ws of ctx.sockets) if (ws.closed) await room.webSocketClose(ws as unknown as WebSocket);
+  };
+  /** The pure room inside the Durable Object, to set up a game or simulate a bug. */
+  const engine = () => (room as unknown as { room: { tick(): boolean; nextAlarm(): number | null } }).room;
+
+  return { ctx, env, join, send, sendRaw, players, wait, wakeLog, deliverCloses, hibernate, engine };
 }
 
 function received(ws: FakeSocket): ServerMessage[] {
@@ -341,5 +354,157 @@ describe("flood control: junk, eviction and mixed identities", () => {
     const sneaky = await join({ pid: "made-up", claim: you });
 
     expect(sneaky.closed?.code).toBe(CLOSE.flood);
+  });
+});
+
+describe("alarm guardrails", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_800_000_000_000);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("never wakes more than once every 2 s, even if the room keeps asking to be woken right away", async () => {
+    const { join, wait, wakeLog, engine } = await openRoom();
+    const a = await join({ name: "A" });
+    // A bug that always "advances" with a deadline already due would otherwise re-fire every 50 ms.
+    const room = engine();
+    room.tick = () => true;
+    room.nextAlarm = () => Date.now();
+
+    const wakes = await wait(10 * MINUTE, [a]);
+
+    // The first wake is the presence sweep a minute in; from then on about one every 2 s: not more
+    // (the cap), and not many fewer (the room still works).
+    expect(wakes).toBeGreaterThanOrEqual(265);
+    expect(wakes).toBeLessThanOrEqual(301);
+    for (let i = 1; i < wakeLog.length; i++) expect(wakeLog[i] - wakeLog[i - 1]).toBeGreaterThanOrEqual(2000);
+  });
+
+  /**
+   * A two-player game already in play: A is the thief, B the lone detective (two pawns). `turnTimerSec` 0 means
+   * no turn timer.
+   */
+  async function heist(turnTimerSec: 0 | 60) {
+    const opened = await openRoom();
+    const { join, send, engine } = opened;
+    const a = await join({ name: "A" });
+    const b = await join({ name: "B" });
+    await send(a, { t: "settings", patch: { thiefSelection: "host", turnTimerSec } });
+    await send(a, { t: "setThief", playerId: playerId(a) });
+    for (const ws of [a, b]) await send(ws, { t: "setReady", ready: true });
+    await send(a, { t: "debug", cmd: "skipToPlay" });
+    const view = () => (engine() as unknown as Room).viewFor(playerId(a));
+    /** The thief's move: a legal destination that avoids paintings, entering through j first. */
+    const thiefMove = async () => {
+      const g = view().game!;
+      const board = getBoard(g.board);
+      const start = g.thief.cell ?? board.slotById.j.inside;
+      const painted = new Set(g.paintings.filter((p) => p.status !== "stolen").map((p) => p.cell));
+      const ends = [...thiefDestinations(board, start, g.detectives.map((d) => d.cell!)).keys()];
+      const dest = ends.find((c) => !painted.has(c)) ?? ends[0];
+      await send(a, { t: "game", action: g.thief.cell === null ? { a: "thiefTurn", entry: "j", dest } : { a: "thiefTurn", dest } });
+    };
+    return { ...opened, a, b, view, thiefMove };
+  }
+
+  // The fastest legitimate deadline is a bot step (BOT_THINK_MS, 0.9-1.6 s apart): a seat handed to a bot, or a
+  // turn finished by a bot after its timer ran out. Each wake-up runs one step, so the gap paces them at 2 s.
+  it("keeps bot turns going, one step at most 2 s after the last", async () => {
+    // Bot think times come from Math.random in the Durable Object: seed it so the run is the same every time.
+    vi.spyOn(Math, "random").mockImplementation(mulberry32(7));
+    const { a, b, ctx, send, wait, wakeLog, deliverCloses, view, thiefMove } = await heist(0);
+    // B leaves and the host hands the detectives to a bot.
+    b.close(1000);
+    await deliverCloses();
+    await send(a, { t: "botTakeover", playerId: playerId(b), on: true });
+
+    /** Lets the bot play until it's the thief's move again; each step must come at most 2 s after the last. */
+    const botPlays = async () => {
+      const from = wakeLog.length;
+      const startedAt = Date.now();
+      for (let guard = 0; guard < 40 && view().game!.phase === "play" && !view().waitingOn.includes(playerId(a)); guard++) await wait(2000, [a]);
+      const steps = [startedAt, ...wakeLog.slice(from)];
+      expect(steps.length).toBeGreaterThan(1);
+      for (let i = 1; i < steps.length; i++) expect(steps[i] - steps[i - 1]).toBeLessThanOrEqual(2000);
+    };
+
+    let detectiveTurns = 0;
+    for (let turn = 0; turn < 5 && view().game!.phase === "play"; turn++) {
+      await thiefMove();
+      await botPlays();
+      // The thief answers any motion prompt at once.
+      while (view().game!.phase === "play" && view().game!.turn.kind === "detective" && view().waitingOn.includes(playerId(a))) {
+        await send(a, { t: "game", action: { a: "motionResponse", snip: false } });
+        await botPlays();
+      }
+      detectiveTurns++;
+    }
+    expect(detectiveTurns).toBeGreaterThanOrEqual(3);
+    expect(ctx.storage.data.has("state")).toBe(true);
+  });
+
+  it("leaves normal timers exactly on time", async () => {
+    const { a, b, wait, wakeLog, engine } = await heist(60);
+    const deadline = (engine() as unknown as Room).state.clock!.turnDeadline!;
+    expect(deadline - Date.now()).toBe(60 * 1000);
+
+    await wait(61 * 1000, [a, b]);
+
+    expect(wakeLog).toContain(deadline);
+  });
+
+  it("turns off rooms that are already running when the kill switch is flipped, and they come back after", async () => {
+    const { ctx, env, join, send, wait, deliverCloses } = await openRoom();
+    const a = await join({ name: "A" });
+    const b = await join({ name: "B" });
+    expect(ctx.storage.alarm).not.toBeNull();
+
+    env.ONLINE_ENABLED = "false";
+    await wait(2 * MINUTE, [a, b]);
+    for (const ws of [a, b]) expect(ws.closed?.code).toBe(CLOSE.offline);
+    // The close events that follow must not re-arm the alarm.
+    await deliverCloses();
+    expect(ctx.storage.alarm).toBeNull();
+    // The room is kept, so it picks up again when online rooms come back.
+    expect(ctx.storage.data.has("state")).toBe(true);
+
+    delete env.ONLINE_ENABLED;
+    const { you, secret } = received(a).find((m) => m.t === "welcome") as Extract<ServerMessage, { t: "welcome" }>;
+    const back = await join({ pid: you, secret });
+    expect(back.closed).toBeNull();
+    expect(ctx.storage.alarm).not.toBeNull();
+    await send(back, { t: "setReady", ready: true });
+    expect(back.closed).toBeNull();
+  });
+
+  it("stops a looping room for good when the kill switch is flipped", async () => {
+    const { ctx, env, join, wait, deliverCloses, engine } = await openRoom();
+    const a = await join({ name: "A" });
+    const room = engine();
+    room.tick = () => true;
+    room.nextAlarm = () => Date.now();
+    expect(await wait(2 * MINUTE, [a])).toBeGreaterThan(20);
+
+    env.ONLINE_ENABLED = "false";
+    await wait(10 * 1000, [a]);
+    // Close events, a reconnecting constructor or a stray message all schedule through the same place.
+    await deliverCloses();
+
+    expect(ctx.storage.alarm).toBeNull();
+    expect(await wait(10 * MINUTE, [])).toBe(0);
+  });
+
+  it("closes a socket that sends a message after the switch is flipped, before any alarm fires", async () => {
+    const { env, join, send } = await openRoom();
+    const a = await join({ name: "A" });
+
+    env.ONLINE_ENABLED = "false";
+    await send(a, { t: "setReady", ready: true });
+
+    expect(a.closed?.code).toBe(CLOSE.offline);
   });
 });
