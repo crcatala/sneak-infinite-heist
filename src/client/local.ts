@@ -2,20 +2,19 @@
 // The screens can't tell the difference: messages go through `store.send`, views come back through
 // the store. Nothing is persisted; closing the tab ends the game.
 
-import { createRoomState, Room } from "../shared/room";
 import type { ClientMessage, ServerMessage } from "../shared/protocol";
+import type { Room } from "../shared/room";
+import { captureOptions } from "./capture";
 import { loadName } from "./identity";
+import { createSoloRoom, type SoloOptions } from "./soloRoom";
 import { useStore } from "./store";
 
-export interface SoloOptions {
-  role: "thief" | "detectives";
-  /** Detective pawns when you play the thief (1–3), or bot teammates when you're a detective (0–2). */
-  bots: number;
-}
+export type { SoloOptions };
 
 interface LocalSession {
   room: Room;
   playerId: string;
+  now: () => number;
   timer?: ReturnType<typeof setTimeout>;
 }
 
@@ -23,23 +22,25 @@ let session: LocalSession | null = null;
 
 export function startLocal(opts: SoloOptions) {
   stopLocal();
-  const room = new Room(createRoomState("SOLO", Date.now()), { now: () => Date.now(), rng: Math.random, cheats: true });
-  const { playerId } = room.join({ name: loadName() || "You" });
-  const bots = opts.role === "thief" ? Math.max(1, Math.min(3, opts.bots)) : Math.max(1, Math.min(3, opts.bots + 1));
-  for (let i = 0; i < bots; i++) room.handle(playerId, { t: "addBot" });
-  room.handle(playerId, { t: "settings", patch: { thiefSelection: "host" } });
-  const thief = opts.role === "thief" ? playerId : room.state.players[room.state.players.length - 1].id;
-  room.handle(playerId, { t: "setThief", playerId: thief });
-  session = { room, playerId };
+  const capture = captureOptions();
+  const { room, playerId, clock, now } = createSoloRoom(opts, loadName() || "You", capture);
+  session = { room, playerId, now };
   useStore.setState({
     mode: "solo",
     status: "open",
     fatal: null,
     claimSeats: [],
-    clockOffset: 0,
+    clockOffset: clock.ahead,
     view: viewOf(room, playerId),
     sendImpl: (msg) => queueMicrotask(() => deliver(msg)),
   });
+  // A capture that starts the game itself has bots to wake.
+  if (capture?.start) schedule(session);
+}
+
+/** Ms since the solo room opened, by its own clock (what scripts/capture-scan.mjs times events by), or null. */
+export function soloRoomTime(): number | null {
+  return session ? session.now() - session.room.state.createdAt : null;
 }
 
 export function stopLocal() {
@@ -83,10 +84,11 @@ function schedule(s: LocalSession) {
   clearTimeout(s.timer);
   const at = s.room.nextAlarm();
   if (at === null) return;
+  // By the room's clock, which capture mode's fast-forward can run ahead of the page's.
   s.timer = setTimeout(() => {
     if (session !== s) return;
     if (s.room.tick()) publish();
     // Timers can fire a hair early; only retry for a deadline that's still ahead.
-    else if ((s.room.nextAlarm() ?? 0) > Date.now()) schedule(s);
-  }, Math.max(20, at - Date.now()));
+    else if ((s.room.nextAlarm() ?? 0) > s.now()) schedule(s);
+  }, Math.max(20, at - s.now()));
 }

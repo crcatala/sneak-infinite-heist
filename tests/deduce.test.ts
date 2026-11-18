@@ -30,6 +30,17 @@ describe("deduce: possible thief cells from public events", () => {
     expect(total).toBeCloseTo(1);
   });
 
+  it("keeps finite weights however long the thief stays unpinned", () => {
+    const g = act(inPlay(), THIEF, { a: "thiefTurn", entry: "a", dest: c(5, 3) });
+    const events = [...detView(g).events];
+    const moved = events.find((e) => e.type === "thiefMoved")!;
+    for (let i = 0; i < 400; i++) events.push({ ...moved, seq: events.length + 1 });
+    const weights = [...deduce(g.board, events).weights.values()];
+    expect(weights.length).toBeGreaterThan(1);
+    expect(weights.every(Number.isFinite)).toBe(true);
+    expect(weights.reduce((a, b) => a + b, 0)).toBeCloseTo(1);
+  });
+
   it("prunes on a 'no' from the eyes and keeps only the sightline on a camera 'yes'", () => {
     let g = act(inPlay(), THIEF, { a: "thiefTurn", entry: "a", dest: c(5, 3) });
     g = detectiveTurn(g, D1, { move: 1, action: "eye" }, { a: "eye", target: "self" });
