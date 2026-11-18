@@ -84,10 +84,11 @@ function schedule(s: LocalSession) {
   clearTimeout(s.timer);
   const at = s.room.nextAlarm();
   if (at === null) return;
+  // By the room's clock, which capture mode's fast-forward can run ahead of the page's.
   s.timer = setTimeout(() => {
     if (session !== s) return;
     if (s.room.tick()) publish();
     // Timers can fire a hair early; only retry for a deadline that's still ahead.
-    else if ((s.room.nextAlarm() ?? 0) > Date.now()) schedule(s);
-  }, Math.max(20, at - Date.now()));
+    else if ((s.room.nextAlarm() ?? 0) > s.now()) schedule(s);
+  }, Math.max(20, at - s.now()));
 }

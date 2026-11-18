@@ -10,11 +10,9 @@
 // The room is set up by the same code as the browser's (src/client/soloRoom.ts), with bots on every
 // seat (watch), so /solo?seed=7&watch&role=... plays exactly this game at exactly these times.
 
-import { build } from "esbuild";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { runnerImport } from "vite";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -29,20 +27,9 @@ const one = arg("seed", null);
 const maxTurns = Number(arg("max-turns", 150));
 const [lo, hi] = (arg("seeds", "1-100") ?? "").split("-").map(Number);
 
-// Bundle the shared engine and the solo set-up for Node (their imports carry no extensions).
-const dir = mkdtempSync(path.join(tmpdir(), "sneak-scan-"));
-const out = path.join(dir, "solo.mjs");
-const bundle = await build({
-  stdin: { contents: 'export { createSoloRoom } from "./src/client/soloRoom.ts";', resolveDir: root, loader: "ts" },
-  bundle: true,
-  platform: "node",
-  format: "esm",
-  write: false,
-  logLevel: "error",
-});
-writeFileSync(out, bundle.outputFiles[0].text);
-const { createSoloRoom } = await import(pathToFileURL(out).href);
-rmSync(dir, { recursive: true, force: true });
+// Vite loads the shared engine and the solo set-up (TypeScript, imports without extensions) for Node.
+const { module: solo } = await runnerImport(path.join(root, "src/client/soloRoom.ts"), { configFile: false, logLevel: "error" });
+const { createSoloRoom } = solo;
 
 /** One game with bots on every seat, played to its end on a simulated clock. */
 function play(seed) {

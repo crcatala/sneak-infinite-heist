@@ -44,6 +44,25 @@ Press <kbd>`</kbd> (backtick) in the game to open it:
 - "View as" thief, detectives or omniscient. This peek is only available in solo mode and in local dev
   (`DEV_CHEATS` in `.dev.vars`), never in production rooms.
 
+## Capture mode (recording footage)
+
+For trailers and preview clips, `npm run dev` accepts URL flags on `/solo` that make a game repeatable and let
+it play itself, for example `/solo?role=thief&n=3&seed=76&turn=8&as=omniscient&clean&hud=0`:
+
+- `seed=<n>`: the same dice, bots and setup every time (and a seeded `Math.random` for the page's effects).
+- `watch`: bots play every seat, yours included. `start` skips the lobby.
+- `turn=<n>` fast-forwards to the thief's turn n, and `end` to the round-over recap (both imply `start` and
+  `watch`).
+- `as=thief|detectives|omniscient`: whose view the board shows.
+- `clean` hides the debug gear, toasts, hints, tooltips and the peek badge; `hud=0` hides the HUD too.
+- `skill=rookie` for weaker bots.
+
+Paired with a controlled clock (Playwright's `page.clock`), the same flags give the same frames. To find a
+seed worth filming, `node scripts/capture-scan.mjs --seeds 1-100` plays watch-mode games in Node (about 2 s for a
+hundred) and prints how each ended; `--seed 76` prints that game's timeline on the room's clock, which
+`window.__sneak.roomTime()` reports in the browser. `window.__sneak.send` issues debug commands mid-take. All of
+it is in `src/client/capture.ts`, and none of it is in production builds.
+
 ## Checks
 
 ```bash

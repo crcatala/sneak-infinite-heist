@@ -846,3 +846,7 @@ body.reduced-motion .tip[data-open="true"] {
 .capture-nohud .announce.stage-docked {
   display: none !important;
 }
+/* Still measured: a big headline flies to it. */
+.capture-nohud .announce-slot {
+  visibility: hidden;
+}
