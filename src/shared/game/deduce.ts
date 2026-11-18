@@ -135,5 +135,9 @@ function spread(board: Board, from: Map<Cell, number>, detectives: Set<Cell>): M
   for (const [s, v] of from) {
     for (const c of board.reach3[s]) if (!detectives.has(c)) out.set(c, (out.get(c) ?? 0) + v);
   }
+  // Every spread multiplies the total by the size of a 3-step reach (about 25), so a thief who stays
+  // unpinned for a couple of hundred turns would overflow to Infinity and NaN: keep the total at 1.
+  const total = [...out.values()].reduce((a, b) => a + b, 0);
+  if (total > 0) for (const [c, v] of out) out.set(c, v / total);
   return out;
 }

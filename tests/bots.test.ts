@@ -7,6 +7,7 @@ import { createGame } from "../src/shared/game/setup";
 import type { GameState } from "../src/shared/game/state";
 import { viewFor } from "../src/shared/game/views";
 import { mulberry32 } from "../src/shared/rng";
+import { act, detView, inPlay, THIEF } from "./helpers";
 
 function play(seed: number, thief: BotLevel, detectives: BotLevel, dawn = 40): GameState {
   const rng = mulberry32(seed);
@@ -66,4 +67,26 @@ describe("smart bots", () => {
     }
     expect(smart).toBeGreaterThan(random);
   }, 120_000);
+});
+
+describe("smart detectives with every exit tried", () => {
+  it("still move after rolling a 1 when the thief is one painting from escaping", () => {
+    // Every lock has been tried (so all are known to be locked) and the thief holds two paintings:
+    // the exit-guarding score used to be -Infinity for every cell, leaving the pawn where it stood.
+    let s = inPlay({ seed: 3 });
+    const rng = mulberry32(3);
+    s = act(s, THIEF, botAction(viewFor(s, "thief"), THIEF, rng, "smart")!);
+    s.paintings[0].status = "stolen";
+    s.paintings[1].status = "stolen";
+    for (const l of s.locks) l.revealed = true;
+    s.forcedRoll = { move: 1, action: "eye" };
+    const pawn = s.turn.kind === "detective" ? s.turn.pawn : "";
+    const actor = s.detectives.find((d) => d.id === pawn)!.controller;
+    s = act(s, actor, { a: "roll" });
+    const from = s.detectives.find((d) => d.id === pawn)!.cell;
+    for (let i = 0; i < 4 && s.turn.kind === "detective" && s.turn.pawn === pawn; i++) {
+      s = act(s, actor, botAction(detView(s), actor, rng, "smart")!); // throws on an illegal move
+    }
+    expect(s.detectives.find((d) => d.id === pawn)!.cell).not.toBe(from);
+  });
 });

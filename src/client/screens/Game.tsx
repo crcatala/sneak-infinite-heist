@@ -14,6 +14,7 @@ import { PauseMenu, RoundOver } from "../hud/RoundOver";
 import { ThiefPad } from "../hud/ThiefPad";
 import { TurnBar } from "../hud/TurnBar";
 import { activePawn } from "../game/derive";
+import { captureOptions } from "../capture";
 import { useBoardInteraction } from "../game/interact";
 import { defersToFocusedControl, primaryIntent } from "../game/keys";
 import { musicFor } from "../game/musicFor";
@@ -73,24 +74,26 @@ export function Game() {
   useHudWatch();
 
   const pointerToggle = showsPointerToggle(view, game);
+  // Capture mode's hud=0 (dev builds): the board, dice, banners and headlines only.
+  const hud = captureOptions()?.hud ?? true;
   // The turn pill is tall while it lists the rotation, and the "last move" card is docked below the top bar.
   const orderOpen = !usePrefs((s) => s.turnOrderCollapsed) && turnSequence(game) !== null;
   return (
     <div className={`screen game-screen role-${view.role ?? "spectator"}${game.power.cut ? " dark" : ""}${pointerToggle ? " has-pointer-toggle" : ""}${orderOpen ? " order-open" : ""}`}>
       <GameScene view={view} game={game} ix={ix} />
       {game.power.cut && <div className="power-vignette" aria-hidden />}
-      <TurnBar view={view} game={game} />
-      {view.role === "thief" && game.phase !== "roundOver" && <ThiefPad game={game} />}
-      <LogPanel view={view} game={game} />
-      {!showResult && <ActionPanel view={view} game={game} ix={ix} />}
+      {hud && <TurnBar view={view} game={game} />}
+      {hud && view.role === "thief" && game.phase !== "roundOver" && <ThiefPad game={game} />}
+      {hud && <LogPanel view={view} game={game} />}
+      {hud && !showResult && <ActionPanel view={view} game={game} ix={ix} />}
       <DiceTray />
-      <CursorTip reason={showResult ? null : ix.hoverReason} />
+      {hud && <CursorTip reason={showResult ? null : ix.hoverReason} />}
       <Announcer active={game.phase === "play" || game.phase === "roundOver"} />
       <BannerLayer />
-      <MotionPrompt view={view} game={game} />
+      {hud && <MotionPrompt view={view} game={game} />}
       {game.phase === "roundOver" && showResult && <RoundOver view={view} game={game} />}
-      {pointerToggle && <PointerToggle />}
-      <EmoteBar view={view} />
+      {hud && pointerToggle && <PointerToggle />}
+      {hud && <EmoteBar view={view} />}
       <PauseMenu view={view} />
       {view.role === "spectator" && <div className="peek-badge watching-badge">👀 Watching with the detectives</div>}
       {view.viewAs && <div className="peek-badge">Peeking as {view.viewAs} (debug)</div>}

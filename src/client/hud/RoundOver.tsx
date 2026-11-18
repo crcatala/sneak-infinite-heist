@@ -103,7 +103,7 @@ export function RoundOver({ view, game }: { view: RoomView; game: GameView }) {
           <p className="label">{match?.mode === "match" ? `Round ${match.round + 1} of ${match.total}` : "Round over"}</p>
           <h1 className="round-headline">{headline}</h1>
           <p className="round-sub">
-            {iWon ? "You win!" : "Better luck next time."} {playerName(view, game.thief.controller)} was the thief
+            {iWon ? "You win!" : "Better luck next time."} {iWasThief ? "You were the thief" : `${playerName(view, game.thief.controller)} was the thief`}
             {result.reason === "escaped" ? ` and got out through the ${slotLabel(board, result.slot!)} with ${result.paintings} painting${result.paintings === 1 ? "" : "s"}.` : result.reason === "captured" ? `; ${pawnName(game, result.by!)} made the arrest.` : "."}
           </p>
         </header>

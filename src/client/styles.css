@@ -833,3 +833,16 @@ input[type="range"]::-moz-range-thumb {
 body.reduced-motion .tip[data-open="true"] {
   animation: none;
 }
+
+/* Capture mode (capture.ts, dev builds): no chrome a recorded clip doesn't want. */
+.capture-clean .debug-tab,
+.capture-clean .debug-console,
+.capture-clean .toasts,
+.capture-clean .hand-note,
+.capture-clean .cursor-tip-anchor,
+.capture-clean .peek-badge {
+  display: none !important;
+}
+.capture-nohud .announce.stage-docked {
+  display: none !important;
+}

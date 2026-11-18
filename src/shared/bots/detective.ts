@@ -169,8 +169,8 @@ function pickMove(view: GameView, board: Board, pawn: DetectivePawn, ends: Map<C
       const [x, y] = [c % board.width, Math.floor(c / board.width)];
       score -= Math.hypot(x - board.width / 2, y - board.height / 2) * 0.5;
     }
-    // Guard exits when an escape is near.
-    if (escapeThreat) {
+    // Guard exits when an escape is near (none left untried means every exit is known to be locked).
+    if (escapeThreat && exits.length > 0) {
       const nearest = Math.min(...exits.map((e) => distance(board, c, e)));
       score -= nearest * 0.4;
     }
