@@ -76,6 +76,7 @@ export function Game() {
   const pointerToggle = showsPointerToggle(view, game);
   // Capture mode's hud=0 (dev builds): the board, dice, banners and headlines only.
   const hud = captureOptions()?.hud ?? true;
+  const headlines = captureOptions()?.headlines ?? true;
   // The turn pill is tall while it lists the rotation, and the "last move" card is docked below the top bar.
   const orderOpen = !usePrefs((s) => s.turnOrderCollapsed) && turnSequence(game) !== null;
   return (
@@ -88,7 +89,7 @@ export function Game() {
       {hud && !showResult && <ActionPanel view={view} game={game} ix={ix} />}
       <DiceTray />
       {hud && <CursorTip reason={showResult ? null : ix.hoverReason} />}
-      <Announcer active={game.phase === "play" || game.phase === "roundOver"} />
+      {headlines && <Announcer active={game.phase === "play" || game.phase === "roundOver"} />}
       <BannerLayer />
       {hud && <MotionPrompt view={view} game={game} />}
       {game.phase === "roundOver" && showResult && <RoundOver view={view} game={game} />}

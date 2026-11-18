@@ -18,6 +18,8 @@
 //   hud=0         Hides the game's HUD too (turn bar, pad, log, action panel), so the camera frames
 //                 the whole board. The dice, banners, big headlines and the round-over card still
 //                 show; a headline that has docked to the corner doesn't.
+//   headlines=0   Hides the big headlines too ("Painting stolen!", "Sage rolled"), which sit over the middle of
+//                 the board: for a shot of what happens under them.
 //   skill=rookie  Bot skill (pro by default), for a longer round with more near misses.
 //
 // window.__sneak (dev builds) also gets `capture`: the options in force, and `send` to issue debug
@@ -35,6 +37,8 @@ export interface CaptureOptions {
   clean: boolean;
   /** False with hud=0: no turn bar, pad, log or action panel. */
   hud: boolean;
+  /** False with headlines=0: no announcements over the board. */
+  headlines: boolean;
   skill: "rookie" | "pro" | null;
 }
 
@@ -60,10 +64,11 @@ function parse(search: string): CaptureOptions | null {
     as: (VIEWERS as readonly string[]).includes(as ?? "") ? (as as CaptureOptions["as"]) : null,
     clean: flag("clean"),
     hud: q.get("hud") !== "0",
+    headlines: q.get("headlines") !== "0",
     skill: skill === "rookie" || skill === "pro" ? skill : null,
   };
   if (opts.turn !== null || opts.end) opts.watch = opts.start = true;
-  const any = opts.seed !== null || opts.watch || opts.start || opts.as !== null || opts.clean || !opts.hud || opts.skill !== null;
+  const any = opts.seed !== null || opts.watch || opts.start || opts.as !== null || opts.clean || !opts.hud || !opts.headlines || opts.skill !== null;
   return any ? opts : null;
 }
 
