@@ -54,7 +54,8 @@ it play itself, for example `/solo?role=thief&n=3&seed=76&turn=8&as=omniscient&c
 - `turn=<n>` fast-forwards to the thief's turn n, and `end` to the round-over recap (both imply `start` and
   `watch`).
 - `as=thief|detectives|omniscient`: whose view the board shows.
-- `clean` hides the debug gear, toasts, hints, tooltips and the peek badge; `hud=0` hides the HUD too.
+- `clean` hides the debug gear, toasts, hints, tooltips and the peek badge; `hud=0` hides the HUD too, and
+  `headlines=0` the big headlines over the board.
 - `skill=rookie` for weaker bots.
 
 Paired with a controlled clock (Playwright's `page.clock`), the same flags give the same frames. To find a
